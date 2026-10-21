@@ -1,0 +1,377 @@
+:root {
+  font-family:
+    Inter,
+    Segoe UI,
+    system-ui,
+    sans-serif;
+  color: #1e302a;
+  background: #f5f6f2;
+  font-synthesis: none;
+  --green: #174d3d;
+  --muted: #66756d;
+  --line: #dce3da;
+  --amber: #805617;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  background: white;
+  color: var(--green);
+  border-radius: 5px;
+  padding: 9px 15px;
+  font-weight: 600;
+}
+button:hover {
+  background: #edf3ed;
+}
+button.primary {
+  background: var(--green);
+  color: white;
+  border-color: var(--green);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid #c19c49;
+  outline-offset: 2px;
+}
+header {
+  background: #153f35;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 30px;
+  gap: 20px;
+}
+.brand {
+  font-size: 23px;
+  font-weight: 750;
+  letter-spacing: 1px;
+}
+.brand small {
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0;
+  display: block;
+  color: #d1e0d7;
+}
+.user {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+.layout {
+  display: grid;
+  grid-template-columns: 210px 1fr;
+  min-height: calc(100vh - 85px);
+}
+nav {
+  background: #fff;
+  border-right: 1px solid var(--line);
+  padding: 28px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+nav button {
+  text-align: left;
+  border-color: transparent;
+  background: transparent;
+}
+nav button[aria-current='page'] {
+  background: #e9f0e8;
+  color: #153f35;
+  border-left: 3px solid var(--green);
+}
+main {
+  padding: 34px clamp(18px, 4vw, 58px);
+  max-width: 1550px;
+  width: 100%;
+  min-width: 0;
+}
+h1 {
+  font-size: 29px;
+  margin: 0 0 8px;
+  letter-spacing: -0.6px;
+}
+h2 {
+  font-size: 20px;
+}
+p {
+  line-height: 1.6;
+}
+.muted {
+  color: var(--muted);
+}
+.toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: end;
+  flex-wrap: wrap;
+  margin: 24px 0;
+}
+.toolbar input {
+  min-width: 220px;
+}
+.metrics {
+  display: flex;
+  flex-wrap: wrap;
+  background: #fff;
+  border-block: 1px solid var(--line);
+  margin: 30px 0;
+}
+.metric {
+  padding: 24px 30px;
+  min-width: 185px;
+  flex: 1;
+}
+.metric strong {
+  display: block;
+  font-size: 32px;
+  font-variant-numeric: tabular-nums;
+  margin-top: 10px;
+}
+.metric span {
+  color: var(--muted);
+}
+.notice {
+  background: #fbf3df;
+  border-left: 4px solid #b2842e;
+  padding: 15px 20px;
+  margin: 18px 0;
+  line-height: 1.6;
+}
+.table-wrap {
+  overflow-x: auto;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+  text-align: left;
+  font-size: 14px;
+}
+th {
+  background: #eef1eb;
+  font-weight: 600;
+  color: #4c6255;
+}
+th,
+td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #edf0e9;
+  vertical-align: top;
+}
+td.num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+td.actions {
+  white-space: nowrap;
+}
+td button {
+  font-size: 12px;
+  padding: 6px 9px;
+  min-height: 34px;
+  margin-right: 6px;
+}
+label {
+  display: grid;
+  gap: 7px;
+  color: #3b5043;
+  font-size: 14px;
+}
+input,
+select,
+textarea {
+  border: 1px solid #bac8bb;
+  background: white;
+  border-radius: 4px;
+  min-height: 43px;
+  padding: 10px;
+  width: 100%;
+  color: #1e302a;
+}
+input[type='checkbox'] {
+  min-height: auto;
+  width: auto;
+}
+textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.wide {
+  grid-column: 1/-1;
+}
+dialog {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  max-width: 700px;
+  width: calc(100% - 30px);
+  padding: 28px;
+  max-height: 90vh;
+  overflow: auto;
+  box-shadow: 0 20px 80px #1233;
+}
+dialog::backdrop {
+  background: #112c2477;
+}
+.dialog-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 25px;
+}
+.error {
+  color: #8b2525;
+  background: #ffefec;
+  padding: 12px;
+  border-radius: 4px;
+}
+.success {
+  color: var(--green);
+  padding: 12px;
+  background: #e7f1e6;
+}
+.empty {
+  padding: 40px;
+  text-align: center;
+  color: var(--muted);
+}
+.login {
+  max-width: 420px;
+  margin: 12vh auto;
+  background: white;
+  padding: 35px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.login form {
+  display: grid;
+  gap: 20px;
+}
+.login h1 {
+  margin-bottom: 8px;
+}
+.login .brand {
+  color: var(--green);
+  margin-bottom: 30px;
+}
+.count-row {
+  display: grid;
+  grid-template-columns: 1fr 140px auto;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-top: 18px;
+}
+.badge {
+  display: inline-block;
+  padding: 4px 7px;
+  background: #eff2eb;
+  border-radius: 3px;
+  font-size: 12px;
+}
+details {
+  margin: 18px 0;
+}
+summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.subtle {
+  font-size: 13px;
+  color: var(--muted);
+}
+#feedback {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  max-width: 440px;
+  z-index: 5;
+  box-shadow: 0 3px 15px #1232;
+}
+a {
+  color: var(--green);
+}
+@media (max-width: 800px) {
+  header {
+    padding: 16px;
+  }
+  .layout {
+    grid-template-columns: 1fr;
+  }
+  nav {
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 10px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  nav button {
+    white-space: nowrap;
+  }
+  main {
+    padding: 24px 16px;
+  }
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .wide {
+    grid-column: auto;
+  }
+  .metric {
+    min-width: 45%;
+    padding: 18px;
+  }
+  .metric strong {
+    font-size: 26px;
+  }
+  .user span {
+    display: none;
+  }
+  .count-row {
+    grid-template-columns: 1fr 100px auto;
+  }
+  .toolbar > * {
+    flex: 1;
+  }
+  th,
+  td {
+    padding: 12px;
+  }
+  .toolbar input {
+    min-width: 160px;
+  }
+}

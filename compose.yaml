@@ -1,0 +1,59 @@
+name: graal-estoque
+services:
+  db:
+    image: postgres:18.4-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-graal_owner}
+      POSTGRES_DB: ${POSTGRES_DB:-graal}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD}
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD:?Defina DB_APP_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql
+      - ./infra/init-db.sh:/docker-entrypoint-initdb.d/10-app.sh:ro
+    networks: [internal]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: {driver: json-file, options: {max-size: 10m, max-file: '3'}}
+  api:
+    build: {context: ., target: runtime}
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      PORT: '3000'
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?Defina a origem HTTPS}
+      SESSION_SECRET: ${SESSION_SECRET:?Defina SESSION_SECRET}
+      DATABASE_URL: postgresql://graal_app:${DB_APP_PASSWORD:?Defina DB_APP_PASSWORD}@db:5432/${POSTGRES_DB:-graal}
+    depends_on: {db: {condition: service_healthy}}
+    networks: [internal]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging: {driver: json-file, options: {max-size: 10m, max-file: '3'}}
+  nginx:
+    build: {context: ., target: web}
+    restart: unless-stopped
+    ports: ['80:80', '443:443']
+    volumes:
+      - ./infra/nginx.production.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
+    depends_on: {api: {condition: service_healthy}}
+    networks: [public, internal]
+    security_opt: [no-new-privileges:true]
+    logging: {driver: json-file, options: {max-size: 10m, max-file: '3'}}
+volumes:
+  pgdata:
+networks:
+  public:
+  internal: {internal: true}

@@ -1,0 +1,20 @@
+name: graal-local
+services:
+  db:
+    image: postgres:18.4-bookworm
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-graal_owner}
+      POSTGRES_DB: ${POSTGRES_DB:-graal}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD}
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD:?Defina DB_APP_PASSWORD}
+    ports: ['127.0.0.1:5432:5432']
+    volumes:
+      - pgdata:/var/lib/postgresql
+      - ./infra/init-db.sh:/docker-entrypoint-initdb.d/10-app.sh:ro
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+volumes:
+  pgdata:
