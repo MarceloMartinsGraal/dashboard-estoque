@@ -19,14 +19,14 @@ export type HistoryState = {
 export function readHistoryState(search: string): HistoryState {
   const p = new URLSearchParams(search);
   const flow = p.get('flow') ?? 'entrada',
-    regime = p.get('regime') ?? 'operacional';
+    regime = p.get('regime') ?? 'todos';
   return {
     flow: ['entrada', 'saida', 'realocacao', 'abertura'].includes(flow)
       ? flow
       : 'entrada',
     regime: ['operacional', 'legado', 'todos'].includes(regime)
       ? regime
-      : 'operacional',
+      : 'todos',
     page: Math.max(1, Math.min(100000, Math.floor(Number(p.get('page')) || 1))),
     limit: 50,
     ...Object.fromEntries(historyFilterKeys.map((k) => [k, p.get(k) ?? ''])),

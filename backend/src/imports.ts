@@ -328,7 +328,7 @@ export class ImportService {
     return this.db.transaction(async (c) => {
       const r = (
         await c.query(
-          'INSERT INTO import_batches(source,checksum,created_by,payload,preview) VALUES($1,$2,$3,$4,$5) ON CONFLICT(source,checksum) DO UPDATE SET checksum=EXCLUDED.checksum RETURNING id,checksum,confirmed_at,preview',
+          'INSERT INTO import_batches(source,checksum,created_by,payload,preview) VALUES($1,$2,$3,$4,$5) ON CONFLICT(source,checksum) DO UPDATE SET checksum=EXCLUDED.checksum RETURNING id,checksum,confirmed_at,preview,payload',
           [
             SOURCE,
             checksum,
@@ -338,12 +338,74 @@ export class ImportService {
           ],
         )
       ).rows[0];
+      r.preview = {
+        ...r.preview,
+        // A impressão existente foi calculada sobre a representação JSONB persistida.
+        report: await this.report(c, r.payload),
+      };
+      await c.query('UPDATE import_batches SET preview=$2 WHERE id=$1', [
+        r.id,
+        JSON.stringify(r.preview),
+      ]);
+      delete r.payload;
       await audit(c, actor, 'prever_importacao', 'lote', r.id, {
         checksum,
         counts: parsed.summary.counts,
       });
       return r;
     });
+  }
+  private async report(c: PoolClient, payload: any) {
+    const known = new Map(
+      (
+        await c.query(
+          'SELECT entity,legacy_id,fingerprint FROM source_records WHERE source=$1',
+          [SOURCE],
+        )
+      ).rows.map((r) => [r.entity + ':' + r.legacy_id, r.fingerprint]),
+    );
+    const issues: { entity: string; legacyId: number; reason: string }[] = [];
+    const count = (entity: string, rows: any[]) => {
+      const result = {
+        processed: rows.length,
+        planned: 0,
+        imported: 0,
+        existing: 0,
+        conflicting: 0,
+      };
+      for (const row of rows) {
+        const hash = known.get(entity + ':' + row.legacyId);
+        if (!hash) result.planned++;
+        else if (hash === fingerprint(row)) result.existing++;
+        else {
+          result.conflicting++;
+          issues.push({
+            entity,
+            legacyId: row.legacyId,
+            reason:
+              'ID legado com conteúdo divergente; confirmação integral será bloqueada',
+          });
+        }
+      }
+      return result;
+    };
+    const products = count('produto', payload.products);
+    const movements = {
+      ...count('movimentacao', payload.movements),
+      entries: payload.movements.filter((m: any) => m.kind === 'entrada')
+        .length,
+      exits: payload.movements.filter((m: any) => m.kind === 'saida').length,
+      zeroEvidence: payload.movements.filter((m: any) => m.zeroEvidence).length,
+    };
+    for (const m of payload.movements)
+      if (m.zeroEvidence)
+        issues.push({
+          entity: 'movimentacao',
+          legacyId: m.legacyId,
+          reason:
+            'Quantidade zero: preservada como evidência legada segregada, sem saldo operacional',
+        });
+    return { products, movements, issues };
   }
   private async register(
     c: PoolClient,
@@ -383,8 +445,9 @@ export class ImportService {
         ])
       ).rows[0];
       if (!batch) throw new BadRequestException('Lote não encontrado');
-      if (batch.confirmed_at) return { id, repeated: true };
       const payload = batch.payload;
+      const result = await this.report(c, payload);
+      if (batch.confirmed_at) return { id, repeated: true, result };
       for (const name of payload.categories)
         await c.query(
           'INSERT INTO categories(name) VALUES($1) ON CONFLICT(name) DO NOTHING',
@@ -393,6 +456,7 @@ export class ImportService {
       const products = new Map<number, string>();
       for (const p of payload.products) {
         if (await this.register(c, 'produto', String(p.legacyId), p)) {
+          result.products.imported++;
           const category = (
             await c.query('SELECT id FROM categories WHERE name=$1', [
               p.category,
@@ -431,7 +495,8 @@ export class ImportService {
         );
       }
       for (const m of payload.movements)
-        if (await this.register(c, 'movimentacao', String(m.legacyId), m))
+        if (await this.register(c, 'movimentacao', String(m.legacyId), m)) {
+          result.movements.imported++;
           await c.query(
             `INSERT INTO legacy_movements(batch_id,source,legacy_id,product_id,kind,quantity,event_date,reason,ticket,origin,observation,date_estimated,date_original,conversion_rule,validation_status,zero_evidence) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
             [
@@ -453,9 +518,12 @@ export class ImportService {
               m.zeroEvidence,
             ],
           );
+        }
+      result.products.planned = 0;
+      result.movements.planned = 0;
       await c.query(
-        'UPDATE import_batches SET confirmed_at=now(),confirmed_by=$2 WHERE id=$1',
-        [id, actor],
+        'UPDATE import_batches SET confirmed_at=now(),confirmed_by=$2,preview=$3 WHERE id=$1',
+        [id, actor, JSON.stringify({ ...batch.preview, result })],
       );
       await audit(c, actor, 'confirmar_importacao_legada', 'lote', id, {
         checksum: batch.checksum,
@@ -463,7 +531,12 @@ export class ImportService {
         pendingAcknowledged: true,
         opening: 'pendente',
       });
-      return { id, repeated: false, openingStatus: 'pendente_contagem_fisica' };
+      return {
+        id,
+        repeated: false,
+        result,
+        openingStatus: 'pendente_contagem_fisica',
+      };
     });
   }
 }

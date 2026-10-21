@@ -62,3 +62,11 @@ test('realocação mostra origem e destino pelos deltas, inclusive no estorno', 
 test('página fracionária digitada na URL é normalizada para inteiro', () => {
   assert.equal(readHistoryState('?page=2.5').page, 2);
 });
+
+test('histórico inclui legado por padrão e identifica sua origem explicitamente', () => {
+  assert.equal(readHistoryState('').regime, 'todos');
+  assert.equal(
+    require('../frontend/src/format.ts').label('legado'),
+    'Legado importado',
+  );
+});

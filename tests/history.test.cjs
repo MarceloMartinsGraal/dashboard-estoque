@@ -97,7 +97,7 @@ test('histórico separa entradas/saídas, realocação e abertura; estorno tem d
   assert.equal(entries.total, 2);
   assert.equal(
     (await queryHistory(db, { flow: 'saida', productId: p })).total,
-    1,
+    2,
   );
   assert.equal(
     (await queryHistory(db, { flow: 'realocacao', productId: p })).total,

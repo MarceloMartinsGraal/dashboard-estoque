@@ -302,3 +302,41 @@ test('localização não informada aceita seu identificador PostgreSQL preservad
     '1.000',
   );
 });
+
+// Conteúdo do armário deve usar o mesmo ledger que o saldo global.
+test('conteúdo por armário agrega entradas, saída, transferência e localização não informada', async () => {
+  const { CatalogController } = require('../dist/backend/catalog');
+  const catalog = new CatalogController(db);
+  const p = await product();
+  await stock.opening(
+    actor,
+    p,
+    day,
+    [{ locationId: locA, quantity: '0' }],
+    'Contagem zero',
+  );
+  const content = async (id) =>
+    (await catalog.locationProducts(id, {})).filter((r) => r.id === p);
+  assert.equal((await content(locA)).length, 0);
+  await stock.move(actor, cmd(p, { kind: 'entrada', quantity: '2' }));
+  assert.equal((await content(locA))[0].quantity, '2.000');
+  await stock.move(actor, cmd(p, { kind: 'entrada', quantity: '3' }));
+  assert.equal((await content(locA)).length, 1);
+  assert.equal((await content(locA))[0].quantity, '5.000');
+  await stock.move(actor, cmd(p));
+  assert.equal((await content(locA))[0].quantity, '4.000');
+  await stock.move(
+    actor,
+    cmd(p, { kind: 'realocacao', quantity: '2', destinationId: locB }),
+  );
+  assert.equal((await content(locA))[0].quantity, '2.000');
+  assert.equal((await content(locB))[0].quantity, '2.000');
+  assert.equal((await stock.balances(p)).total, '4.000');
+  const unknown = '00000000-0000-0000-0000-000000000001';
+  await stock.move(
+    actor,
+    cmd(p, { kind: 'realocacao', quantity: '2', destinationId: unknown }),
+  );
+  assert.equal((await content(locA)).length, 0);
+  assert.equal((await content(unknown))[0].quantity, '2.000');
+});

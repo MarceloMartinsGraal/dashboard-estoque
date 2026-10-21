@@ -153,6 +153,7 @@ function formDialog(
   fields: Field[],
   submit: (values: Row) => Promise<unknown>,
   note?: string,
+  onSaved?: () => Promise<unknown>,
 ) {
   const d = dialog(name),
     form = el('form'),
@@ -184,6 +185,7 @@ function formDialog(
       d.close();
       message('Operação registrada com sucesso.');
       await navigate(current);
+      await onSaved?.();
     } catch (e) {
       error.hidden = false;
       error.textContent = (e as Error).message;
@@ -232,7 +234,7 @@ function writeHistory(state: HistoryState) {
   if (location.search.slice(1) !== search)
     window.history.pushState(null, '', location.pathname + '?' + search);
 }
-function productHistory(p: Row, flow = 'entrada', regime = 'operacional') {
+function productHistory(p: Row, flow = 'entrada', regime = 'todos') {
   writeHistory({ ...readHistoryState(''), productId: p.id, flow, regime });
   return navigate('Histórico', false);
 }
@@ -661,7 +663,11 @@ function editLocation(row: Row = {}, onSaved?: () => Promise<void>) {
     },
   );
 }
-async function movement(p: Row, initialKind = 'saida') {
+async function movement(
+  p: Row,
+  initialKind = 'saida',
+  onSaved?: () => Promise<unknown>,
+) {
   let [fresh, balance] = await Promise.all([
     api('catalog'),
     api('products/' + p.id + '/balances'),
@@ -734,6 +740,7 @@ async function movement(p: Row, initialKind = 'saida') {
       await api('movements', data);
     },
     'Entrada: todos os armários ativos. Saída e origem de realocação: somente locais com saldo disponível. Escolha a localização explicitamente.',
+    onSaved,
   );
   const kind = d.querySelector<HTMLSelectElement>('[name=kind]')!,
     origin = d.querySelector<HTMLSelectElement>('[name=locationId]')!,
@@ -921,7 +928,14 @@ async function locationProducts(
     );
   const content = el('section');
   content.append(el('p', 'Carregando saldos…', 'muted'));
-  d.append(content);
+  d.append(
+    el(
+      'p',
+      'Somente saldo operacional positivo. Cadastro de armário não atribui quantidades; produtos legados aguardam contagem física aprovada.',
+      'notice',
+    ),
+    content,
+  );
   try {
     const rows = await api(
       `locations/${location.id}/products?page=${page}&limit=30`,
@@ -940,15 +954,21 @@ async function locationProducts(
           actions.append(
             button('Registrar entrada', () => {
               d.close();
-              return movement(p, 'entrada');
+              return movement(p, 'entrada', () =>
+                locationProducts(location, page),
+              );
             }),
             button('Registrar saída', () => {
               d.close();
-              return movement(p, 'saida');
+              return movement(p, 'saida', () =>
+                locationProducts(location, page),
+              );
             }),
             button('Mover entre armários', () => {
               d.close();
-              return movement(p, 'realocacao');
+              return movement(p, 'realocacao', () =>
+                locationProducts(location, page),
+              );
             }),
           );
         return [p.description, quantity(p.quantity), p.unit, actions];
@@ -964,7 +984,10 @@ async function locationProducts(
   } catch (e) {
     content.replaceChildren(el('p', (e as Error).message, 'error'));
   }
-  d.append(button('Fechar', () => d.close()));
+  d.append(
+    button('Atualizar saldos', () => locationProducts(location, page, d)),
+    button('Fechar', () => d.close()),
+  );
 }
 async function opening(p: Row) {
   catalog = await api('catalog');
@@ -1328,6 +1351,10 @@ async function history(
                 el('div', 'Código legado ' + r.product_code, 'subtle'),
               );
             name.append(el('span', label(r.regime), 'badge'));
+            if (r.zero_evidence)
+              name.append(
+                el('span', 'Evidência segregada: quantidade zero', 'badge'),
+              );
             const details = button('Ver detalhes', () => movementDetails(r));
             return [
               eventDay(r.event_date),
@@ -1390,6 +1417,9 @@ function movementDetails(r: Row) {
     'Data original': r.date_original ?? 'Não disponível',
     'Regra de conversão': r.conversion_rule ?? 'Não disponível',
     'Situação de validação': r.validation_status,
+    'Evidência de quantidade zero': r.zero_evidence
+      ? 'Sim — preservada e segregada; sem saldo operacional'
+      : 'Não',
     'Estorno do movimento': r.reversal_of ?? 'Não se aplica',
     'Estornado pelo movimento': r.reversed_by ?? 'Não se aplica',
   };
@@ -1515,7 +1545,7 @@ function renderBatch(container: HTMLElement, batch: Row) {
   container.append(
     el(
       'p',
-      `${c.products} produtos · ${c.categories} categorias · ${c.movements} movimentos · ${c.zeroEvidence} registros zerados`,
+      `${c.products} produtos processados · ${c.categories} categorias · ${c.movements} movimentos lidos: ${c.entries} entradas e ${c.exits} saídas · ${c.zeroEvidence} registros zerados`,
     ),
     el('p', 'Checksum SHA-256: ' + batch.checksum, 'subtle'),
     el(
@@ -1528,6 +1558,63 @@ function renderBatch(container: HTMLElement, batch: Row) {
       `Saldos históricos líquidos: ${quantity(p.unitTotals.unidade ?? '0.000')} unidades; ${quantity(p.unitTotals.metro ?? '0.000')} metros. Não representam disponibilidade.`,
     ),
   );
+  const report = batch.confirmed_at ? (p.result ?? p.report) : p.report;
+  if (report) {
+    if (batch.confirmed_at && !p.result)
+      container.append(
+        el(
+          'p',
+          'Situação atual dos registros: este lote não possui relatório histórico da confirmação.',
+          'notice',
+        ),
+      );
+    const products = report.products,
+      movements = report.movements;
+    container.append(
+      el(
+        'p',
+        `${products.processed} produtos processados: ${products.imported} importados, ${products.existing} já existentes${batch.confirmed_at ? '' : `, ${products.planned} previstos`}.`,
+      ),
+      el(
+        'p',
+        `${movements.imported} movimentos efetivamente importados; ${movements.existing} já existentes${batch.confirmed_at ? '' : `; ${movements.planned} previstos`}. ${movements.conflicting + products.conflicting} conflitos bloqueiam a confirmação integral.`,
+      ),
+      table(
+        ['Entidade', 'ID legado', 'Motivo da segregação / rejeição'],
+        report.issues,
+        (r) => [r.entity, String(r.legacyId), r.reason],
+      ),
+    );
+  } else if (batch.confirmed_at) {
+    container.append(
+      el(
+        'p',
+        'Lote anterior ao relatório detalhado: contagens de novos/já existentes na confirmação não foram registradas. Gere novamente a prévia para conferir os registros existentes.',
+        'notice',
+      ),
+    );
+  }
+  container.append(
+    el(
+      'p',
+      `${c.zeroEvidence} registros de quantidade zero são preservados no histórico como evidência segregada. ${c.movements - c.zeroEvidence} movimentos têm quantidade positiva. O total persistido inclui essas evidências; nenhum registro legado altera o saldo operacional. Arquivos inválidos são rejeitados integralmente com o motivo, sem importação parcial.`,
+      'notice',
+    ),
+  );
+  if (batch.confirmed_at) {
+    for (const flow of ['entrada', 'saida'])
+      container.append(
+        button(
+          flow === 'entrada'
+            ? 'Ver entradas importadas'
+            : 'Ver saídas importadas',
+          () => {
+            writeHistory({ ...readHistoryState(''), flow, regime: 'legado' });
+            return navigate('Histórico', false);
+          },
+        ),
+      );
+  }
   const pending = el('details');
   pending.append(
     el('summary', 'Pendências de validação'),

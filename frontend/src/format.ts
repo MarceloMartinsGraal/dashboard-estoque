@@ -43,7 +43,7 @@ export function label(value: string): string {
         contagem_fisica: 'Contagem física',
         legado_nao_informado: 'Legado não informado',
         operacional: 'Operacional',
-        legado: 'Legado',
+        legado: 'Legado importado',
         todos: 'Todas as origens',
       } as Record<string, string>
     )[value] ?? value

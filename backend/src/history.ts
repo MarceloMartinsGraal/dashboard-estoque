@@ -18,7 +18,7 @@ const schema = z
     flow: z
       .enum(['entrada', 'saida', 'realocacao', 'abertura'])
       .default('entrada'),
-    regime: z.enum(['operacional', 'legado', 'todos']).default('operacional'),
+    regime: z.enum(['operacional', 'legado', 'todos']).default('todos'),
     q: z.string().trim().max(200).optional(),
     productId: uuid.optional(),
     categoryId: uuid.optional(),
