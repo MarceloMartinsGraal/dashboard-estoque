@@ -18,6 +18,21 @@ Sem commit, push, deploy, certificado real ou importação em produção realiza
 
 Fontes consultadas em 21/10/2026: [Node LTS](https://nodejs.org/en/about/previous-releases), [NestJS](https://docs.nestjs.com/), [PostgreSQL](https://www.postgresql.org/support/versioning/), [Vite](https://vite.dev/guide/), [Nginx estável](https://nginx.org/en/download.html). Versões dos pacotes conferidas no registro oficial npm.
 
+## Testar localmente só com Docker
+
+`compose.dev.yaml` sobe banco, migração, API e frontend (Nginx em HTTP) sem precisar de Node no host. Não é configuração de produção: usa `NODE_ENV=development`, sem HTTPS, e publica apenas `127.0.0.1:8080`.
+
+Com `.env` preenchido (seção abaixo; o compose usa só `SESSION_SECRET`, `POSTGRES_PASSWORD` e `DB_APP_PASSWORD`):
+
+```powershell
+docker compose -f compose.dev.yaml up -d --build --wait
+docker compose -f compose.dev.yaml run --rm --no-deps api node dist/backend/bootstrap.js
+```
+
+O segundo comando cria o primeiro responsável (interativo; só funciona com o banco sem funcionários). Abra exatamente `http://localhost:8080`; `127.0.0.1` falha na verificação CSRF de origem. Após mudar código, repita o primeiro comando. Para parar: `docker compose -f compose.dev.yaml down`; acrescentar `-v` apaga o banco local de teste.
+
+Os scripts `.sh` e as configurações Nginx precisam de quebras de linha LF; `.gitattributes` garante isso no checkout. Com CRLF, o `init-db.sh` falha e o banco fica sem o usuário `graal_app`. Nesse caso, recrie o volume local.
+
 ## Executar localmente
 
 Na raiz do repositório:
