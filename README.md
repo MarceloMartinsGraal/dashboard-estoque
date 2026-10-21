@@ -90,14 +90,14 @@ Neste Windows foi usado PostgreSQL real **18.4** temporário em `work/`, com bin
 
 ## Regras importantes
 
-- Valores da API de quantidade são texto decimal com ponto. Internamente, inteiros `bigint` representam milésimos: 1 unidade = 1000; 0,001 metro = 1. Unidades exigem múltiplos inteiros; metros aceitam até três casas. Não há arredondamento automático.
+- Valores da API de quantidade são texto decimal com ponto. Internamente, inteiros `bigint` representam milésimos: 1 unidade = 1000. Todos os produtos usam unidades inteiras; o metro foi descontinuado (migração `004_unidade_unica.sql` converte produtos em metro sem frações e falha se houver fração).
 - Saldos são derivados do livro de lançamentos por localização; não há campo de saldo editável. A soma das localizações é o global.
 - Toda operação bloqueia o produto com `SELECT ... FOR UPDATE` e grava os lançamentos numa única transação. Saídas concorrentes do mesmo produto são serializadas. Validações de fechamento por dia impedem retroatividade que torne qualquer localização negativa.
 - Data do evento é `DATE`; instante de registro é `timestamptz`. Legado sem horário não recebe um horário inventado.
 - Uma única abertura aprovada por produto estabelece o corte. É possível contar zero explicitamente; isso não cria uma movimentação artificial de quantidade zero. Depois da abertura, divergências exigem ajustes justificados. Abertura e estorno não são estornáveis novamente.
 - Estorno tem vínculo único com o original, autoria e justificativa. Faz lançamentos inversos; se faltar saldo, é bloqueado. A correção completa é estorno mais novo lançamento.
 - Produtos e funcionários podem ser inativados sem apagar histórico. Armário com saldo não pode ser inativado. “Não informada” é uma localização explícita e preservada.
-- Unidades e metros são apresentados separadamente. Mínimo é opcional; nenhum mínimo é inferido.
+- Não há estoque mínimo nem metros na interface. O campo Armário em Editar produto move todo o saldo do produto para o armário escolhido, por realocações rastreáveis (motivo “outro”, justificativa automática).
 - O backend exige motivo, chamado textual quando necessário e justificativa para ajustes, correção de estoque ou outro motivo.
 - A trilha registra alterações de cadastros, aberturas, movimentos, estornos e lotes. Registros de movimento, livro, legado e auditoria são imutáveis no banco pelas rotas usuais; acesso administrativo direto ao banco continua sendo responsabilidade da infraestrutura.
 
@@ -108,7 +108,7 @@ Neste Windows foi usado PostgreSQL real **18.4** temporário em `work/`, com bin
 3. Confira contagens, saldos históricos por produto/unidade, evidências zeradas e pendências. A cópia organizada altera somente ordem; não é homologação.
 4. A confirmação exige ciência explícita de que as pendências permanecem segregadas. Ela disponibiliza **somente histórico legado**, sem abrir saldo e sem incorporar dados financeiros.
 5. Mesmo checksum retorna o lote existente. Outro checksum com os mesmos IDs e conteúdo não duplica registros. O mesmo ID com conteúdo divergente bloqueia toda a confirmação, em vez de sobrescrever.
-6. Produtos importados ficam com abertura pendente. Realize contagem física por produto e armário, revise identidades/unidades e só então aprove a abertura na tela Produtos. O histórico anterior nunca é somado novamente à abertura.
+6. Ao confirmar a importação, cada produto legado abre com o saldo líquido do histórico (entradas − saídas) em “Localização não informada”, com data de corte igual à última data do legado. Saldos negativos abrem zerados e permanecem nas pendências. O histórico não entra no livro, então não há dupla contagem. Para lotes já confirmados, use **Abrir saldos pendentes pelo histórico já importado** na tela Importação.
 
 JSON inválido, chaves repetidas, IDs repetidos, referências órfãs, unidades inválidas e datas inválidas são rejeitados. Apenas campos explicitamente mapeados são persistidos. `valor_unitario` e outros dados financeiros ficam exclusivamente no arquivo de origem protegido. As 25 quantidades zero permanecem como evidência no histórico legado, sem eventos operacionais. Motivos ausentes recebem `legado_nao_informado`. Chamados são texto; zeros são preservados.
 
@@ -131,7 +131,7 @@ Leia `docs/operations.md`. Defina domínio/DNS, responsáveis por contas/backups
 - Filtros combináveis no PostgreSQL: produto por descrição/código legado/ID interno, categoria, subcategoria, armário, período da **data do evento**, motivo, funcionário, chamado e origem. Busca do produto ignora caixa e acentos portugueses sem alterar os textos gravados. A resposta `/api/history` agora contém `items`, `total`, `page` e `limit`; quantidades permanecem texto decimal canônico.
 - Aba, filtros e página ficam na URL. Atualizar, compartilhar e usar Voltar/Avançar preservam a consulta. Alterar filtros reinicia a página; Limpar filtros mantém apenas a aba. Produtos e detalhes dos movimentos permitem abrir o histórico já filtrado, preservando a origem quando a consulta começa no legado.
 - Ordenação por data do evento decrescente e UUID como desempate técnico estável. O identificador não comprova ordem cronológica intradiária no legado.
-- A página Armários tem busca, ativo/inativo, paginação e saldos separados para unidades e metros. “Produtos e saldos” consulta os itens de cada localização. Cadastro e edição continuam auditados; armário com saldo não pode ser inativado.
+- A página Armários tem busca, ativo/inativo, paginação e saldos em unidades. “Produtos e saldos” consulta os itens de cada localização. Cadastro e edição continuam auditados; armário com saldo não pode ser inativado.
 - A movimentação atualiza catálogo e saldos ao abrir, sem escolher localização automaticamente. Entrada oferece todos os armários ativos, inclusive sem histórico do produto; saída e origem de realocação oferecem somente armários ativos com saldo. Destino da realocação exclui a origem. É possível cadastrar armário no próprio formulário e atualizar as opções sem recarregar a aplicação. A associação produto/localização continua derivada dos lançamentos transacionais, sem criar uma estrutura de saldo paralela.
 - Causas reproduzidas: catálogo em memória desatualizado nos formulários e conflito entre a validação RFC do Zod e o UUID sentinela já usado para “Não informada”. O UUID foi preservado; a validação agora aceita a representação hexadecimal canônica aceita pelo PostgreSQL. As referências continuam sendo conferidas no banco. Não foi encontrada paginação no catálogo que ocultasse armários: testadas 125 opções.
 - Quantidades usam um formatador de apresentação pt-BR: `2.000` na API significa `2` na tela, `2000.000` significa `2.000`, `2.125` significa `2,125`; ausentes permanecem `—`. Nenhum dado persistido ou valor de API foi reformatado ou arredondado.

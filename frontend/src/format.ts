@@ -41,6 +41,7 @@ export function label(value: string): string {
         outro: 'Outro',
         correcao_estoque: 'Correção de estoque',
         contagem_fisica: 'Contagem física',
+        saldo_legado: 'Saldo do histórico importado',
         legado_nao_informado: 'Legado não informado',
         operacional: 'Operacional',
         legado: 'Legado importado',

@@ -73,12 +73,10 @@ Nunca executar testes contra produção.
 - O saldo resulta de movimentações confirmadas e da abertura operacional validada.
 - Não disponibilizar edição direta de saldo.
 - Quantidades de movimentações devem ser positivas.
-- Produtos em unidades aceitam quantidades inteiras.
-- Produtos em metros podem aceitar decimais com precisão definida.
+- Todos os produtos usam unidades e aceitam somente quantidades inteiras (metro descontinuado).
 - Não utilizar ponto flutuante binário para cálculos de quantidade.
-- Não somar unidades e metros no mesmo indicador.
 - Não apresentar saldo negativo como disponibilidade.
-- Não inventar estoque mínimo; ele deve ser configurado por produto.
+- Não há estoque mínimo.
 
 ### Concorrência
 
@@ -203,15 +201,11 @@ Textos parecidos podem representar modelos, capacidades ou condições diferente
 
 ## 10. Abertura operacional
 
-A estratégia recomendada é:
-1. Preservar o histórico antigo para consulta.
-2. Realizar contagem física por produto e armário.
-3. Validar pendências e aprovar a contagem.
-4. Registrar a abertura operacional com data de corte explícita.
+Decisão do responsável (21/10/2026): ao confirmar a importação, cada produto legado abre com o saldo líquido do histórico (entradas − saídas) em localização não informada, com data de corte igual à última data do legado. Saldos negativos abrem zerados e permanecem como pendência. A contagem física continua disponível para produtos sem histórico.
 
 Histórico legado e movimentos operacionais devem ser distinguíveis.
 
-Nunca somar o histórico completo novamente aos saldos de abertura. Sem contagem aprovada, a abertura permanece pendente.
+Nunca somar o histórico completo novamente aos saldos de abertura: o legado fica fora do livro de saldos e a abertura ocorre uma única vez por produto.
 
 Qualquer estratégia alternativa deve documentar a conciliação e impedir dupla contagem.
 
@@ -221,7 +215,6 @@ Qualquer estratégia alternativa deve documentar a conciliação e impedir dupla
 - Manter navegação simples e identidade visual consistente.
 - Priorizar busca, filtros, saldo por armário, entradas, saídas e histórico.
 - Exibir pendências de importação e validação de forma compreensível.
-- Separar indicadores em unidades e metros.
 - Incluir estados de carregamento, erro e ausência de dados.
 - Utilizar formulários acessíveis e mensagens de validação claras.
 - Evitar expor detalhes técnicos que não ajudem a pessoa a operar o sistema.

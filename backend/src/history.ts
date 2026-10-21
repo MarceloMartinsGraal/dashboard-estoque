@@ -35,6 +35,7 @@ const schema = z
         'correcao_estoque',
         'recebimento',
         'contagem_fisica',
+        'saldo_legado',
         'legado_nao_informado',
       ])
       .optional(),

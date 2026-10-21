@@ -16,7 +16,7 @@ import type { Request } from 'express';
 import { z } from 'zod';
 import { SessionGuard } from './auth';
 import { Database, audit } from './db';
-import { formatQuantity, parseQuantity } from './quantity';
+import { formatQuantity } from './quantity';
 import { text, uuid, validate } from './validation';
 const pageFields = {
   page: z.coerce.number().int().min(1).max(100000).default(1),
@@ -28,9 +28,9 @@ const productSchema = z
     description: text,
     categoryId: uuid.nullable().default(null),
     subcategoryId: uuid.nullable().default(null),
-    unit: z.enum(['unidade', 'metro']),
+    unit: z.literal('unidade').default('unidade'),
     active: z.boolean(),
-    minimum: z.string().max(24).nullable().default(null),
+    locationId: uuid.nullable().default(null),
   })
   .strict();
 @Controller()
@@ -62,7 +62,6 @@ export class CatalogController {
           ...pageFields,
           q: z.string().max(200).default(''),
           categoryId: uuid.optional(),
-          unit: z.enum(['unidade', 'metro']).optional(),
           locationId: uuid.optional(),
           status: z
             .enum(['todos', 'ativo', 'inativo', 'abertura_pendente'])
@@ -74,13 +73,12 @@ export class CatalogController {
     const args = [
       q.q,
       q.categoryId ?? null,
-      q.unit ?? null,
       q.locationId ?? null,
       q.status,
     ];
-    const where = `($1='' OR p.description ILIKE '%'||$1||'%' OR p.legacy_id::text=$1) AND ($2::uuid IS NULL OR p.category_id=$2) AND ($3::text IS NULL OR p.unit=$3) AND ($4::uuid IS NULL OR EXISTS(SELECT 1 FROM ledger l JOIN movements m ON m.id=l.movement_id WHERE m.product_id=p.id AND l.location_id=$4)) AND ($5='todos' OR ($5='ativo' AND p.active) OR ($5='inativo' AND NOT p.active) OR ($5='abertura_pendente' AND p.opening_date IS NULL))`;
+    const where = `($1='' OR p.description ILIKE '%'||$1||'%' OR p.legacy_id::text=$1) AND ($2::uuid IS NULL OR p.category_id=$2) AND ($3::uuid IS NULL OR EXISTS(SELECT 1 FROM ledger l JOIN movements m ON m.id=l.movement_id WHERE m.product_id=p.id AND l.location_id=$3)) AND ($4='todos' OR ($4='ativo' AND p.active) OR ($4='inativo' AND NOT p.active) OR ($4='abertura_pendente' AND p.opening_date IS NULL))`;
     const items = await this.db.pool.query(
-      `SELECT p.*,p.opening_date::text AS opening_date,c.name AS category,(SELECT COALESCE(SUM(l.delta),0)::text FROM movements m JOIN ledger l ON l.movement_id=m.id WHERE m.product_id=p.id) AS quantity FROM products p LEFT JOIN categories c ON c.id=p.category_id WHERE ${where} ORDER BY p.description,p.id LIMIT $6 OFFSET $7`,
+      `SELECT p.*,p.opening_date::text AS opening_date,c.name AS category,(SELECT COALESCE(SUM(l.delta),0)::text FROM movements m JOIN ledger l ON l.movement_id=m.id WHERE m.product_id=p.id) AS quantity,(SELECT COALESCE(jsonb_agg(s.location_id),'[]'::jsonb) FROM (SELECT l.location_id FROM movements m JOIN ledger l ON l.movement_id=m.id WHERE m.product_id=p.id GROUP BY l.location_id HAVING SUM(l.delta)>0) s) AS location_ids FROM products p LEFT JOIN categories c ON c.id=p.category_id WHERE ${where} ORDER BY p.description,p.id LIMIT $5 OFFSET $6`,
       [...args, q.limit, (q.page - 1) * q.limit],
     );
     const total = (
@@ -93,10 +91,6 @@ export class CatalogController {
       items: items.rows.map((p) => ({
         ...p,
         quantity: formatQuantity(BigInt(p.quantity)),
-        minimum:
-          p.minimum_quantity === null
-            ? null
-            : formatQuantity(BigInt(p.minimum_quantity)),
       })),
       total: Number(total),
       page: q.page,
@@ -108,12 +102,6 @@ export class CatalogController {
     @Body() body: unknown,
   ) {
     const d = validate(productSchema, body);
-    const minimum =
-      d.minimum === null
-        ? null
-        : d.minimum === '0'
-          ? 0n
-          : parseQuantity(d.minimum, d.unit);
     if (d.subcategoryId && !d.categoryId)
       throw new BadRequestException('Subcategoria exige categoria');
     return this.db.transaction(async (c) => {
@@ -123,19 +111,6 @@ export class CatalogController {
           await c.query('SELECT * FROM products WHERE id=$1 FOR UPDATE', [d.id])
         ).rows[0];
         if (!before) throw new NotFoundException();
-        if (
-          before.unit !== d.unit &&
-          (before.opening_date ||
-            (
-              await c.query(
-                'SELECT 1 FROM legacy_movements WHERE product_id=$1 LIMIT 1',
-                [d.id],
-              )
-            ).rowCount)
-        )
-          throw new ConflictException(
-            'Unidade com histórico não pode ser convertida automaticamente',
-          );
       }
       const params = [
         d.description,
@@ -143,21 +118,54 @@ export class CatalogController {
         d.subcategoryId,
         d.unit,
         d.active,
-        minimum?.toString() ?? null,
       ];
       const p = d.id
         ? (
             await c.query(
-              'UPDATE products SET description=$1,category_id=$2,subcategory_id=$3,unit=$4,active=$5,minimum_quantity=$6 WHERE id=$7 RETURNING id',
+              'UPDATE products SET description=$1,category_id=$2,subcategory_id=$3,unit=$4,active=$5 WHERE id=$6 RETURNING id',
               [...params, d.id],
             )
           ).rows[0]
         : (
             await c.query(
-              'INSERT INTO products(description,category_id,subcategory_id,unit,active,minimum_quantity) VALUES($1,$2,$3,$4,$5,$6) RETURNING id',
+              'INSERT INTO products(description,category_id,subcategory_id,unit,active) VALUES($1,$2,$3,$4,$5) RETURNING id',
               params,
             )
           ).rows[0];
+      if (d.locationId) {
+        if (!before?.opening_date)
+          throw new ConflictException(
+            'Abra o saldo do produto antes de definir o armário',
+          );
+        if (
+          !(
+            await c.query(
+              'SELECT 1 FROM locations WHERE id=$1 AND active FOR SHARE',
+              [d.locationId],
+            )
+          ).rowCount
+        )
+          throw new BadRequestException('Armário inválido ou inativo');
+        // Realocação rastreável de todo o saldo dos demais armários para o escolhido.
+        const others = (
+          await c.query(
+            'SELECT l.location_id,SUM(l.delta)::text quantity FROM ledger l JOIN movements m ON m.id=l.movement_id WHERE m.product_id=$1 AND l.location_id<>$2 GROUP BY l.location_id HAVING SUM(l.delta)>0',
+            [p.id, d.locationId],
+          )
+        ).rows;
+        for (const o of others) {
+          const m = (
+            await c.query(
+              "INSERT INTO movements(product_id,kind,quantity,event_date,actor_id,reason,justification) SELECT id,'realocacao',$2,GREATEST((now() AT TIME ZONE 'America/Sao_Paulo')::date,opening_date),$3,'outro','Armário definido no cadastro do produto' FROM products WHERE id=$1 RETURNING id",
+              [p.id, o.quantity, req.employee!.id],
+            )
+          ).rows[0];
+          await c.query(
+            'INSERT INTO ledger(movement_id,location_id,delta) VALUES($1,$2,$3),($1,$4,$5)',
+            [m.id, o.location_id, '-' + o.quantity, d.locationId, o.quantity],
+          );
+        }
+      }
       await audit(
         c,
         req.employee!.id,
@@ -313,7 +321,7 @@ export class CatalogController {
 
   @Post('units') async unit(@Req() req: Request, @Body() body: unknown) {
     const d = validate(
-      z.object({ code: z.enum(['unidade', 'metro']), name: text }).strict(),
+      z.object({ code: z.literal('unidade'), name: text }).strict(),
       body,
     );
     return this.db.transaction(async (c) => {

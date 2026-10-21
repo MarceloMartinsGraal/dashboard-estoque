@@ -143,24 +143,24 @@ test('quantidade, motivo, chamado e justificativa são obrigatórios conforme re
   ])
     await assert.rejects(stock.move(actor, cmd(p, extra)));
 });
-test('precisão em metros e estorno de realocação preservam soma', async () => {
-  const p = await product('metro');
+test('estorno de realocação preserva soma', async () => {
+  const p = await product();
   await stock.opening(
     actor,
     p,
     day,
-    [{ locationId: locA, quantity: '0.3' }],
+    [{ locationId: locA, quantity: '3' }],
     'Contagem',
   );
   const m = await stock.move(
     actor,
-    cmd(p, { kind: 'realocacao', quantity: '0.1', destinationId: locB }),
+    cmd(p, { kind: 'realocacao', quantity: '1', destinationId: locB }),
   );
   await stock.reverse(actor, m.id, day, 'Armário incorreto');
-  assert.equal((await stock.balances(p)).total, '0.300');
+  assert.equal((await stock.balances(p)).total, '3.000');
   assert.equal(
     (await stock.balances(p)).locations.find((x) => x.id === locA).quantity,
-    '0.300',
+    '3.000',
   );
 });
 test('retroatividade não pode gerar fechamento negativo', async () => {

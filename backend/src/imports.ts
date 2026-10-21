@@ -27,7 +27,7 @@ const productSchema = z.object({
   descricao: nullableText,
   categoria: z.string().min(1).max(200),
   subcategoria: nullableText,
-  unidade: z.enum(['unidade', 'metro']),
+  unidade: z.literal('unidade'),
   ativo: z.boolean(),
 });
 const movementSchema = z.object({
@@ -247,7 +247,7 @@ export function parseLegacy(content: string) {
       productId: pid,
       status: 'pendente_validacao',
     });
-  const totals: { [unit: string]: bigint } = { unidade: 0n, metro: 0n };
+  const totals: { [unit: string]: bigint } = { unidade: 0n };
   const balances = products.map((p) => {
     const q = totalByProduct.get(p.legacyId) ?? 0n;
     totals[p.unit] += q;
@@ -313,9 +313,9 @@ export function parseLegacy(content: string) {
     unitTotals: Object.fromEntries(
       Object.entries(totals).map(([unit, q]) => [unit, formatQuantity(q)]),
     ),
-    openingStatus: 'pendente_contagem_fisica',
+    openingStatus: 'abertura_pelo_saldo_legado',
     notice:
-      'Saldos legados são referência histórica e não disponibilidade. Confirmação mantém pendências segregadas.',
+      'Ao confirmar, cada produto abre com o saldo legado (entradas − saídas) em localização não informada; saldos negativos abrem zerados. Pendências continuam segregadas.',
   };
   return { payload: { categories, products, movements }, summary };
 }
@@ -431,6 +431,29 @@ export class ImportService {
       );
     return false;
   }
+  /** Abre os produtos legados pendentes com o saldo líquido do histórico; o legado segue fora do ledger, sem dupla contagem. */
+  async openFromLegacy(c: PoolClient, actor: string) {
+    await c.query('SELECT pg_advisory_xact_lock(742107)');
+    // Só abre o que o UPDATE realmente travou como pendente; contagens concorrentes prevalecem.
+    return (
+      await c.query(
+        `WITH cutoff AS (SELECT COALESCE(MAX(event_date),(now() AT TIME ZONE 'America/Sao_Paulo')::date) d FROM legacy_movements),
+ totals AS (SELECT p.id,COALESCE(SUM(CASE lm.kind WHEN 'saida' THEN -lm.quantity ELSE lm.quantity END),0) q FROM products p LEFT JOIN legacy_movements lm ON lm.product_id=p.id WHERE p.source=$2 AND p.opening_date IS NULL GROUP BY p.id),
+ opened AS (UPDATE products p SET opening_date=(SELECT d FROM cutoff) FROM totals t WHERE p.id=t.id AND p.opening_date IS NULL RETURNING p.id,t.q),
+ moved AS (INSERT INTO movements(product_id,kind,quantity,event_date,actor_id,reason,justification) SELECT id,'abertura',q,(SELECT d FROM cutoff),$1,'saldo_legado','Saldo líquido do histórico importado (entradas − saídas)' FROM opened WHERE q>0 RETURNING id,quantity),
+ placed AS (INSERT INTO ledger(movement_id,location_id,delta) SELECT id,'00000000-0000-0000-0000-000000000001',quantity FROM moved)
+ SELECT COUNT(*)::int products,COUNT(*) FILTER(WHERE q>0)::int "withBalance",COUNT(*) FILTER(WHERE q<0)::int "negativeOpenedAtZero" FROM opened`,
+        [actor, SOURCE],
+      )
+    ).rows[0];
+  }
+  async openLegacyBalances(actor: string) {
+    return this.db.transaction(async (c) => {
+      const result = await this.openFromLegacy(c, actor);
+      await audit(c, actor, 'abrir_saldo_legado', 'produto', SOURCE, result);
+      return result;
+    });
+  }
   async confirm(actor: string, id: string, acknowledgePending: boolean) {
     validate(uuid, id);
     if (acknowledgePending !== true)
@@ -529,13 +552,12 @@ export class ImportService {
         checksum: batch.checksum,
         counts: batch.preview.counts,
         pendingAcknowledged: true,
-        opening: 'pendente',
       });
       return {
         id,
         repeated: false,
         result,
-        openingStatus: 'pendente_contagem_fisica',
+        opening: await this.openFromLegacy(c, actor),
       };
     });
   }
@@ -560,6 +582,9 @@ export class ImportController {
       body,
     );
     return this.imports.preview(req.employee!.id, d.content);
+  }
+  @Post('open-legacy-balances') openLegacy(@Req() req: Request) {
+    return this.imports.openLegacyBalances(req.employee!.id);
   }
   @Post(':id/confirm') confirm(
     @Req() req: Request,

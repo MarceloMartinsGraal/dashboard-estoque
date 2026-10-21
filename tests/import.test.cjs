@@ -99,7 +99,7 @@ test('JSON inválido, chaves repetidas, IDs repetidos e referências órfãs sã
     assert.throws(() => parseLegacy(JSON.stringify(d)));
   }
 });
-test('prévia não importa; confirmação repetida e arquivo reordenado não duplicam nem abrem saldo', async () => {
+test('prévia não importa; confirmação repetida e arquivo reordenado não duplicam; saldo negativo abre zerado', async () => {
   const source = JSON.stringify(data());
   const batch = await service.preview(actor, source);
   assert.equal(
@@ -112,6 +112,11 @@ test('prévia não importa; confirmação repetida e arquivo reordenado não dup
   );
   await assert.rejects(service.confirm(actor, batch.id, false));
   const confirmed = await service.confirm(actor, batch.id, true);
+  assert.deepEqual(confirmed.opening, {
+    products: 1,
+    withBalance: 0,
+    negativeOpenedAtZero: 1,
+  });
   assert.equal(confirmed.result.products.imported, 1);
   assert.equal(confirmed.result.movements.imported, 3);
   assert.equal(confirmed.result.movements.zeroEvidence, 1);
@@ -133,7 +138,7 @@ test('prévia não importa; confirmação repetida e arquivo reordenado não dup
     )
   ).rows[0];
   assert.equal(product.original_description, 'Produto legado original');
-  assert.equal(product.opening_date, null);
+  assert.notEqual(product.opening_date, null);
   assert.equal(
     (
       await db.pool.query(
@@ -237,4 +242,26 @@ test('legado confirmado aparece por padrão em entradas e saídas, sem saldo ope
     0,
   );
   assert.equal((await new StockService(db).balances(p)).total, '0.000');
+});
+
+test('saldo positivo do legado abre uma única vez em localização não informada', async () => {
+  const { StockService } = require('../dist/backend/stock');
+  const d = data();
+  d.produtos = [{ ...d.produtos[0], id: 900, descricao: 'Positivo' }];
+  d.movimentacoes = [
+    { ...d.movimentacoes[0], id: 900, produto_id: 900, quantidade: 5 },
+    { ...d.movimentacoes[1], id: 901, produto_id: 900, quantidade: 2 },
+  ];
+  const batch = await service.preview(actor, JSON.stringify(d));
+  const confirmed = await service.confirm(actor, batch.id, true);
+  assert.equal(confirmed.opening.withBalance, 1);
+  assert.equal((await service.openLegacyBalances(actor)).products, 0);
+  const p = (
+    await db.pool.query(
+      "SELECT id FROM products WHERE source='graal-estoque' AND legacy_id=900",
+    )
+  ).rows[0].id;
+  const balances = await new StockService(db).balances(p);
+  assert.equal(balances.total, '3.000');
+  assert.equal(balances.locations[0].id, '00000000-0000-0000-0000-000000000001');
 });

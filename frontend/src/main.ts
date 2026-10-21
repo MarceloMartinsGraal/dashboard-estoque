@@ -34,7 +34,6 @@ let current = 'Visão geral',
   productPage = 1,
   productQuery = '',
   productStatus = 'todos',
-  productUnit = '',
   productCategory = '',
   productLocation = '';
 const today = () =>
@@ -103,7 +102,7 @@ function control(field: Field) {
         field.key === 'password' ? 'current-password' : 'new-password';
     if (field.type === 'number') {
       input.min = '0';
-      input.step = '0.001';
+      input.step = '1';
     }
   }
   input.name = field.key;
@@ -366,7 +365,6 @@ async function overview() {
   for (const [label, value] of [
     ['Produtos cadastrados', String(d.products)],
     ['Saldo em unidades', quantity(d.totals.unidade ?? '0.000')],
-    ['Saldo em metros', quantity(d.totals.metro ?? '0.000')],
     ['Aberturas pendentes', String(d.pending)],
   ]) {
     const m = el('div', '', 'metric');
@@ -396,15 +394,6 @@ function productFields(p: Row = {}): Field[] {
   return [
     { key: 'description', label: 'Descrição', value: p.description },
     {
-      key: 'unit',
-      label: 'Unidade',
-      options: [
-        { value: 'unidade', label: 'Unidade (inteiros)' },
-        { value: 'metro', label: 'Metro (até 3 casas)' },
-      ],
-      value: p.unit ?? 'unidade',
-    },
-    {
       key: 'categoryId',
       label: 'Categoria',
       options: [
@@ -430,12 +419,22 @@ function productFields(p: Row = {}): Field[] {
       value: p.subcategory_id ?? '',
       required: false,
     },
-    {
-      key: 'minimum',
-      label: 'Estoque mínimo (opcional)',
-      value: p.minimum ?? '',
-      required: false,
-    },
+    ...(p.opening_date
+      ? [
+          {
+            key: 'locationId',
+            label: 'Armário (move todo o saldo para ele)',
+            options: [
+              { value: '', label: 'Manter como está' },
+              ...catalog.locations
+                .filter((l: Row) => l.active)
+                .map((l: Row) => ({ value: l.id, label: locationName(l) })),
+            ],
+            value: p.location_ids?.length === 1 ? p.location_ids[0] : '',
+            required: false,
+          },
+        ]
+      : []),
     {
       key: 'active',
       label: 'Situação',
@@ -455,15 +454,14 @@ function editProduct(p: Row = {}) {
       await api('products', {
         ...(p.id ? { id: p.id } : {}),
         description: d.description,
-        unit: d.unit,
         categoryId: d.categoryId || null,
         subcategoryId: d.subcategoryId || null,
-        minimum: d.minimum || null,
+        locationId: d.locationId || null,
         active: d.active === 'true',
       });
     },
     p.source
-      ? 'A descrição original e o ID legado serão preservados. Não altere a unidade de um produto com histórico.'
+      ? 'A descrição original e o ID legado serão preservados.'
       : undefined,
   );
 }
@@ -491,17 +489,6 @@ async function products() {
       ],
       value: productStatus,
     }),
-    unit = control({
-      key: 'unit',
-      label: 'Unidade',
-      options: [
-        { value: '', label: 'Todas' },
-        { value: 'unidade', label: 'Unidades' },
-        { value: 'metro', label: 'Metros' },
-      ],
-      value: productUnit,
-      required: false,
-    }),
     category = control({
       key: 'category',
       label: 'Categoria',
@@ -521,7 +508,6 @@ async function products() {
   toolbar.append(
     search.label,
     status.label,
-    unit.label,
     category.label,
     location.label,
     filter,
@@ -531,7 +517,6 @@ async function products() {
     e.preventDefault();
     productQuery = search.input.value;
     productStatus = status.input.value;
-    productUnit = unit.input.value;
     productCategory = category.input.value;
     productLocation = location.input.value;
     productPage = 1;
@@ -544,14 +529,13 @@ async function products() {
     page: String(productPage),
     limit: '30',
   });
-  if (productUnit) query.set('unit', productUnit);
   if (productCategory) query.set('categoryId', productCategory);
   if (productLocation) query.set('locationId', productLocation);
   const result = await api('products?' + query);
   if (current !== 'Produtos' || revision !== productsVersion) return;
   main.append(
     table(
-      ['Produto', 'Categoria', 'Disponível', 'Unidade', 'Abertura', 'Ações'],
+      ['Produto', 'Categoria', 'Disponível', 'Armário', 'Abertura', 'Ações'],
       result.items,
       (p) => {
         const name = el(
@@ -586,7 +570,11 @@ async function products() {
           name,
           p.category ?? 'Não classificada',
           p.opening_date ? quantity(p.quantity) : 'Pendente',
-          p.unit,
+          p.location_ids
+            .map((id: string) =>
+              locationName(catalog.locations.find((l: Row) => l.id === id)),
+            )
+            .join(', ') || '—',
           p.opening_date ? eventDay(p.opening_date) : 'Pendente',
           actions,
         ];
@@ -831,7 +819,7 @@ let locationPage = 1,
 async function locationsPage() {
   title(
     'Armários',
-    'Localizações internas de um único estoque. Unidades e metros são apresentados separadamente.',
+    'Localizações internas de um único estoque.',
   );
   const form = el('form', '', 'toolbar'),
     search = control({
@@ -881,7 +869,7 @@ async function locationsPage() {
   if (current !== 'Armários') return;
   content.replaceChildren(
     table(
-      ['Código / nome', 'Situação', 'Unidades', 'Metros', 'Ações'],
+      ['Código / nome', 'Situação', 'Unidades', 'Ações'],
       result.items,
       (r) => {
         const actions = el('div', '', 'actions');
@@ -892,7 +880,6 @@ async function locationsPage() {
           locationName(r),
           r.active ? 'Ativo' : 'Inativo',
           quantity(r.totals.unidade ?? '0.000'),
-          quantity(r.totals.metro ?? '0.000'),
           actions,
         ];
       },
@@ -931,7 +918,7 @@ async function locationProducts(
   d.append(
     el(
       'p',
-      'Somente saldo operacional positivo. Cadastro de armário não atribui quantidades; produtos legados aguardam contagem física aprovada.',
+      'Somente saldo operacional positivo. Para colocar um produto neste armário, use Editar produto ou Mover entre armários.',
       'notice',
     ),
     content,
@@ -1200,6 +1187,7 @@ async function history(
           'correcao_estoque',
           'outro',
           'contagem_fisica',
+          'saldo_legado',
           'legado_nao_informado',
         ].map((v) => ({ value: v, label: label(v) })),
       ],
@@ -1483,9 +1471,19 @@ async function imports() {
   main.append(
     el(
       'p',
-      'Preserve o arquivo original em armazenamento protegido. A cópia organizada não é homologada. A importação não abre saldo, não converte unidades e não resolve pendências automaticamente.',
+      'Preserve o arquivo original em armazenamento protegido. Ao confirmar, cada produto abre com o saldo do histórico (entradas − saídas) em localização não informada; saldos negativos abrem zerados e ficam nas pendências.',
       'notice',
     ),
+    button('Abrir saldos pendentes pelo histórico já importado', async () => {
+      if (
+        !confirm('Abrir os produtos legados pendentes com o saldo do histórico?')
+      )
+        return;
+      const r = await api('imports/open-legacy-balances', {});
+      message(
+        `${r.products} produtos abertos; ${r.withBalance} com saldo; ${r.negativeOpenedAtZero} negativos abertos zerados.`,
+      );
+    }),
   );
   const form = el('form', '', 'toolbar'),
     field = control({
@@ -1550,12 +1548,12 @@ function renderBatch(container: HTMLElement, batch: Row) {
     el('p', 'Checksum SHA-256: ' + batch.checksum, 'subtle'),
     el(
       'p',
-      `${p.pending.length} pendências. Abertura: pendente de contagem física.`,
+      `${p.pending.length} pendências.`,
       'notice',
     ),
     el(
       'p',
-      `Saldos históricos líquidos: ${quantity(p.unitTotals.unidade ?? '0.000')} unidades; ${quantity(p.unitTotals.metro ?? '0.000')} metros. Não representam disponibilidade.`,
+      `Saldo histórico líquido: ${quantity(p.unitTotals.unidade ?? '0.000')} unidades.`,
     ),
   );
   const report = batch.confirmed_at ? (p.result ?? p.report) : p.report;
@@ -1597,7 +1595,7 @@ function renderBatch(container: HTMLElement, batch: Row) {
   container.append(
     el(
       'p',
-      `${c.zeroEvidence} registros de quantidade zero são preservados no histórico como evidência segregada. ${c.movements - c.zeroEvidence} movimentos têm quantidade positiva. O total persistido inclui essas evidências; nenhum registro legado altera o saldo operacional. Arquivos inválidos são rejeitados integralmente com o motivo, sem importação parcial.`,
+      `${c.zeroEvidence} registros de quantidade zero são preservados no histórico como evidência segregada. ${c.movements - c.zeroEvidence} movimentos têm quantidade positiva. O saldo de abertura vem da soma líquida do histórico. Arquivos inválidos são rejeitados integralmente com o motivo, sem importação parcial.`,
       'notice',
     ),
   );
@@ -1643,7 +1641,7 @@ function renderBatch(container: HTMLElement, batch: Row) {
     ack.append(
       checkbox,
       document.createTextNode(
-        'Estou ciente das pendências. Confirmar apenas o histórico, mantendo a abertura pendente.',
+        'Estou ciente das pendências. Importar o histórico e abrir os saldos por ele.',
       ),
     );
     const b = button(
@@ -1653,7 +1651,7 @@ function renderBatch(container: HTMLElement, batch: Row) {
           throw new Error('Confirme ciência das pendências');
         if (
           !confirm(
-            'Importar somente o histórico legado, sem abrir saldo operacional?',
+            'Importar o histórico e abrir o saldo de cada produto por ele?',
           )
         )
           return;
@@ -1662,7 +1660,7 @@ function renderBatch(container: HTMLElement, batch: Row) {
           await api('imports/' + batch.id + '/confirm', {
             acknowledgePending: true,
           });
-          message('Histórico importado; abertura continua pendente.');
+          message('Histórico importado e saldos abertos.');
           await imports();
         } finally {
           b.disabled = false;
@@ -1729,12 +1727,12 @@ async function masterData() {
     el('h2', 'Unidades de medida'),
     el(
       'p',
-      'Unidade: quantidades inteiras. Metro: até três casas decimais. Não há conversões automáticas entre embalagens ou unidades.',
+      'Todas as quantidades são em unidades inteiras.',
       'muted',
     ),
     table(['Nome', 'Precisão', 'Ação'], catalog.units, (r) => [
       r.name,
-      r.precision_digits === 0 ? 'Inteiros' : 'Até três casas',
+      'Inteiros',
       button('Editar nome', () =>
         formDialog(
           'Unidade de medida',

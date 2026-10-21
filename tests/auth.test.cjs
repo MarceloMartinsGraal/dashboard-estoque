@@ -132,7 +132,7 @@ test('falhas de login têm resposta genérica e limitação persistida', async (
   );
 });
 
-test('cadastros auditados rejeitam saldo direto e preservam unidade após abertura', async () => {
+test('cadastros auditados rejeitam saldo direto, metro e movem saldo pelo armário do cadastro', async () => {
   const a = request.agent(app.getHttpServer());
   await db.pool.query('DELETE FROM login_attempts');
   const logged = await login(a);
@@ -158,7 +158,6 @@ test('cadastros auditados rejeitam saldo direto e preservam unidade após abertu
     active: true,
     categoryId: null,
     subcategoryId: null,
-    minimum: null,
   });
   assert.equal(product.status, 201);
   assert.equal(
@@ -191,10 +190,9 @@ test('cadastros auditados rejeitam saldo direto e preservam unidade após abertu
         active: true,
         categoryId: null,
         subcategoryId: null,
-        minimum: null,
       })
     ).status,
-    409,
+    400,
   );
   assert.equal(
     (
@@ -206,6 +204,32 @@ test('cadastros auditados rejeitam saldo direto e preservam unidade após abertu
       })
     ).status,
     409,
+  );
+  const other = await post('locations', {
+    code: 'HTTP-B',
+    name: 'Armário HTTP B',
+    active: true,
+  });
+  assert.equal(
+    (
+      await post('products', {
+        id: product.body.id,
+        description: 'Produto HTTP',
+        active: true,
+        locationId: other.body.id,
+      })
+    ).status,
+    201,
+  );
+  const balances = (
+    await a.get('/api/products/' + product.body.id + '/balances')
+  ).body;
+  assert.equal(balances.total, '2.000');
+  assert.deepEqual(
+    balances.locations
+      .filter((l) => l.quantity !== '0.000')
+      .map((l) => [l.id, l.quantity]),
+    [[other.body.id, '2.000']],
   );
   assert.ok((await a.get('/api/audit')).body.length >= 2);
 });
@@ -327,10 +351,11 @@ test('cadastro de unidades permite nome mas bloqueia conversão e precisão arbi
       .set('Origin', origin)
       .set('x-csrf-token', logged.body.csrf)
       .send(d);
-  assert.equal((await post({ code: 'metro', name: 'Metro' })).status, 201);
+  assert.equal((await post({ code: 'unidade', name: 'Unidade' })).status, 201);
   assert.equal(
-    (await post({ code: 'metro', name: 'Metro', precision: 6 })).status,
+    (await post({ code: 'unidade', name: 'Unidade', precision: 6 })).status,
     400,
   );
+  assert.equal((await post({ code: 'metro', name: 'Metro' })).status, 400);
   assert.equal((await post({ code: 'caixa', name: 'Caixa' })).status, 400);
 });

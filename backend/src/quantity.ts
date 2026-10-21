@@ -4,11 +4,9 @@ export function parseQuantity(value: string, unit: string): bigint {
   if (
     typeof value !== 'string' ||
     !/^(0|[1-9]\d{0,12})(\.\d{1,3})?$/.test(value) ||
-    !['unidade', 'metro'].includes(unit)
+    unit !== 'unidade'
   )
-    throw new BadRequestException(
-      'Quantidade inválida; use ponto e até três casas para metros.',
-    );
+    throw new BadRequestException('Quantidade inválida; use números inteiros.');
   const [integer, fraction = ''] = value.split('.');
   const result = BigInt(integer) * 1000n + BigInt(fraction.padEnd(3, '0'));
   if (
