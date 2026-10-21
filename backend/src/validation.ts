@@ -1,6 +1,11 @@
 import { BadRequestException } from '@nestjs/common';
 import { z } from 'zod';
-export const uuid = z.string().uuid();
+export const uuid = z
+  .string()
+  .regex(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    'Identificador UUID inválido',
+  );
 export const text = z.string().trim().min(1).max(2000);
 export const eventDate = z
   .string()

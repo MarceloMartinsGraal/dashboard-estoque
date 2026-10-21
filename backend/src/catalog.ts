@@ -1,3 +1,4 @@
+import { queryHistory } from './history';
 import {
   BadRequestException,
   Body,
@@ -5,6 +6,7 @@ import {
   Controller,
   Get,
   NotFoundException,
+  Param,
   Post,
   Query,
   Req,
@@ -343,31 +345,73 @@ export class CatalogController {
       ),
     };
   }
-  @Get('history') async history(@Query() query: unknown) {
+
+  @Get('history') history(@Query() query: unknown) {
+    return queryHistory(this.db, query);
+  }
+  @Get('history/filters') async historyFilters() {
+    return {
+      employees: (
+        await this.db.pool.query(
+          'SELECT id,name,active FROM employees ORDER BY name,id',
+        )
+      ).rows,
+    };
+  }
+  @Get('locations') async locations(@Query() query: unknown) {
     const q = validate(
       z
         .object({
           ...pageFields,
-          productId: uuid.optional(),
-          regime: z.enum(['operacional', 'legado']).default('operacional'),
+          q: z.string().trim().max(200).default(''),
+          status: z.enum(['todos', 'ativo', 'inativo']).default('todos'),
         })
         .strict(),
       query,
     );
-    const args = [q.productId ?? null, q.limit, (q.page - 1) * q.limit];
-    const operational = q.regime === 'operacional';
-    const result = operational
-      ? await this.db.pool.query(
-          `SELECT m.*,m.event_date::text event_date,e.name author,p.description,(SELECT json_agg(json_build_object('location',a.name,'delta',l.delta::text)) FROM ledger l JOIN locations a ON a.id=l.location_id WHERE l.movement_id=m.id) locations FROM movements m JOIN employees e ON e.id=m.actor_id JOIN products p ON p.id=m.product_id WHERE ($1::uuid IS NULL OR m.product_id=$1) ORDER BY m.recorded_at DESC,m.id LIMIT $2 OFFSET $3`,
-          args,
-        )
-      : await this.db.pool.query(
-          `SELECT m.*,m.event_date::text event_date,m.author_label author,p.description,NULL recorded_at FROM legacy_movements m JOIN products p ON p.id=m.product_id WHERE ($1::uuid IS NULL OR m.product_id=$1) ORDER BY m.event_date DESC,m.legacy_id DESC LIMIT $2 OFFSET $3`,
-          args,
-        );
-    return result.rows.map((r) => ({
+    const where =
+      "(strpos(lower(a.code||' '||a.name),lower($1))>0) AND ($2='todos' OR a.active=($2='ativo'))";
+    const total = (
+      await this.db.pool.query(
+        'SELECT COUNT(*)::text total FROM locations a WHERE ' + where,
+        [q.q, q.status],
+      )
+    ).rows[0].total;
+    const items = (
+      await this.db.pool.query(
+        `SELECT a.*,(SELECT COALESCE(jsonb_object_agg(s.unit,s.quantity),'{}'::jsonb) FROM (SELECT p.unit,SUM(l.delta)::text quantity FROM ledger l JOIN movements m ON m.id=l.movement_id JOIN products p ON p.id=m.product_id WHERE l.location_id=a.id GROUP BY p.unit) s) totals FROM locations a WHERE ${where} ORDER BY a.code,a.id LIMIT $3 OFFSET $4`,
+        [q.q, q.status, q.limit, (q.page - 1) * q.limit],
+      )
+    ).rows;
+    return {
+      items: items.map((r) => ({
+        ...r,
+        totals: Object.fromEntries(
+          Object.entries(r.totals).map(([u, n]) => [
+            u,
+            formatQuantity(BigInt(n as string)),
+          ]),
+        ),
+      })),
+      total: Number(total),
+      page: q.page,
+      limit: q.limit,
+    };
+  }
+  @Get('locations/:id/products') async locationProducts(
+    @Param('id') id: string,
+    @Query() query: unknown,
+  ) {
+    validate(uuid, id);
+    const q = validate(z.object(pageFields).strict(), query);
+    const rows = (
+      await this.db.pool.query(
+        `SELECT p.id,p.description,p.unit,p.active,p.opening_date::text opening_date,p.legacy_id,SUM(l.delta)::text quantity FROM products p JOIN movements m ON m.product_id=p.id JOIN ledger l ON l.movement_id=m.id WHERE l.location_id=$1 GROUP BY p.id HAVING SUM(l.delta)>0 ORDER BY p.description,p.id LIMIT $2 OFFSET $3`,
+        [id, q.limit, (q.page - 1) * q.limit],
+      )
+    ).rows;
+    return rows.map((r) => ({
       ...r,
-      regime: q.regime,
       quantity: formatQuantity(BigInt(r.quantity)),
     }));
   }

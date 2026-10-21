@@ -286,3 +286,19 @@ test('estorno não devolve saldo para armário inativado', async () => {
   );
   assert.equal((await stock.balances(p)).total, '0.000');
 });
+
+test('localização não informada aceita seu identificador PostgreSQL preservado', async () => {
+  const p = await product();
+  const unknown = '00000000-0000-0000-0000-000000000001';
+  await stock.opening(
+    actor,
+    p,
+    day,
+    [{ locationId: unknown, quantity: '1' }],
+    'Conferência explícita sem localização informada',
+  );
+  assert.equal(
+    (await stock.balances(p)).locations.find((x) => x.id === unknown).quantity,
+    '1.000',
+  );
+});
