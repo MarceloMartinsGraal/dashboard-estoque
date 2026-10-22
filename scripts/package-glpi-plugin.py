@@ -3,7 +3,7 @@ from pathlib import Path
 import hashlib, zipfile
 base=Path(__file__).resolve().parents[1]
 source=base/'glpi-plugin/estoquegraal'
-out=base/'glpi-plugin/dist/estoquegraal-0.1.0.zip'
+out=base/'glpi-plugin/dist/estoquegraal-0.1.1.zip'
 out.parent.mkdir(parents=True,exist_ok=True)
 files=[source/n for n in ['setup.php','hook.php','README.md','LICENSE']]
 for folder in ['lib','inc','front','ajax','js','css','pics','docs']:

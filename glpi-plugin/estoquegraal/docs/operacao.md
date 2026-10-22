@@ -21,7 +21,7 @@ Servidor GLPI → dashboard: HTTPS com certificado válido e cadeia CA confiáve
 
 Busque produtos, selecione um e confira saldo por armário. Escolha explicitamente entrada/saída, armário, quantidade inteira positiva, data e motivo. Motivos outro/correção exigem observação. Revise, marque a conferência e confirme. Abrir/fechar o chamado ou visualizar a aba não altera estoque.
 
-Cadastrar produto é operação separada: cria produto ativo em unidades, sem quantidade. **A API atual não oferece abertura de estoque: abra o saldo no dashboard antes de registrar a entrada pelo plugin.** Falha na entrada não repete o cadastro. Não existem edição direta de saldo, exclusão de movimentos ou estorno pelo plugin; histórico mostra estornos registrados no dashboard.
+Cadastrar produto é operação separada: cria produto ativo em unidades, sem quantidade. **Com o backend atualizado, produtos novos cadastrados pela integração recebem base operacional zero na data do cadastro (America/Sao_Paulo), sem movimento ou quantidade. Registre depois a primeira entrada pelo plugin, em operação separada e confirmada.** Produtos existentes sem abertura e legados continuam exigindo conciliação no dashboard; não recebem base zero retroativa. Falha na entrada não repete o cadastro. Não existem edição direta de saldo, exclusão de movimentos ou estorno pelo plugin; histórico mostra estornos registrados no dashboard.
 
 Após timeout, consulte a intenção existente. O resultado pode já estar gravado. Reenvio explícito usa a mesma chave e o mesmo conteúdo; não crie uma nova intenção para contornar resultado desconhecido. As intenções persistem no banco GLPI, associadas a usuário/chamado/entidade/instância. A lista exibe as últimas 20 pendentes do contexto. O histórico confirmado continua no dashboard.
 
@@ -42,3 +42,7 @@ Logs locais usam identificador de diagnóstico, ação, estado e status; não in
 ## Remover
 
 Antes de desinstalar, concilie intenções pendentes e revogue manualmente a credencial no dashboard. Desative e desinstale pela administração GLPI. A desinstalação remove tabela de intenções, configuração/segredo e direitos próprios. **Não apaga nem estorna movimentos do dashboard**, não revoga automaticamente sua credencial e não altera o core GLPI. Guarde backup se precisar conservar diagnóstico local. Somente depois remova a pasta do plugin.
+
+## Atualização 0.1.1 — requisito do backend
+
+Atualize também o backend do dashboard com a correção de base zero da integração antes de usar este pacote. Não há migração ou alteração de produtos existentes. O plugin consulta o saldo após cadastrar e só habilita a entrada se `openingDate` estiver presente. Em backend antigo, continua bloqueando com mensagem de abertura pendente. Não substitua uma intenção de cadastro já concluída por novo cadastro: produtos criados antes da correção devem ser conciliados pelo fluxo existente.

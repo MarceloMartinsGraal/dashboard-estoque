@@ -4,7 +4,6 @@ const { randomUUID, randomBytes, createHash } = require('node:crypto');
 const { Database } = require('../dist/backend/db');
 const { migrate } = require('../dist/backend/migrate');
 const { createApp } = require('../dist/backend/app');
-const { StockService } = require('../dist/backend/stock');
 (async () => {
   let db, app, client;
   try {
@@ -75,14 +74,7 @@ const { StockService } = require('../dist/backend/stock');
       'product',
     );
     const location = '00000000-0000-0000-0000-000000000001',
-      day = '2026-01-03';
-    await new StockService(db).opening(
-      actor,
-      product.id,
-      day,
-      [{ locationId: location, quantity: '0' }],
-      'Contagem zero de fixture sintética',
-    );
+      day = (await call('/products/'+product.id+'/balances')).openingDate;
     const body = {
       productId: product.id,
       kind: 'entrada',

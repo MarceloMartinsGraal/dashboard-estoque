@@ -70,7 +70,7 @@ export class ProductService {
       limit: q.limit,
     };
   }
-  async save(actor: string, body: unknown, client?: PoolClient) {
+  async save(actor: string, body: unknown, client?: PoolClient, initializeEmpty = false) {
     const d = validate(productSchema, body);
     if (d.subcategoryId && !d.categoryId)
       throw new BadRequestException('Subcategoria exige categoria');
@@ -102,6 +102,14 @@ export class ProductService {
               params,
             )
           ).rows[0];
+      // Apenas criação explicitamente solicitada pela integração: base zero, sem ledger.
+      // Importação e produtos existentes nunca passam por esta inicialização.
+      if (!d.id && initializeEmpty) {
+        await c.query("UPDATE products SET opening_date=(now() AT TIME ZONE 'America/Sao_Paulo')::date WHERE id=$1", [p.id]);
+        await audit(c, actor, 'inicializar_base_zero', 'produto', p.id, {
+          origin: 'integration', quantity: '0.000', createsMovement: false,
+        });
+      }
       if (d.locationId) {
         if (!before?.opening_date)
           throw new ConflictException(

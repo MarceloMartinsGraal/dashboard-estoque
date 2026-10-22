@@ -274,7 +274,7 @@ export class IntegrationService {
     const d = validate(createSchema, body);
     return this.execute(client, key, 'product', d, async (c, actor) => {
       const { externalUserId, ...product } = d;
-      return this.products.save(actor, product, c);
+      return this.products.save(actor, product, c, true);
     });
   }
   async search(query: unknown) {

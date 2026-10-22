@@ -219,7 +219,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Cadastra produto sem quantidade. Inicializa base zero na data do cadastro (America/Sao_Paulo), sem movimento ou ledger. Primeira entrada é operação separada em POST /movements; produtos existentes e legados não são alterados."
       }
     },
     "/products/{id}/balances": {

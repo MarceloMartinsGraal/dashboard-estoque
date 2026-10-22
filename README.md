@@ -202,4 +202,4 @@ A manutenção preserva contratos, UI e regras: paginação centralizada com lim
 
 ## Plugin Estoque Graal para GLPI
 
-Plugin desenvolvido para posterior instalação e homologação no **GLPI 11.0.5**, sem acesso à instalação existente. Consulte [instalação/configuração](glpi-plugin/estoquegraal/README.md) e [testes locais e roteiro de homologação](glpi-plugin/estoquegraal/docs/verificacao.md). Gere o pacote com `python scripts/package-glpi-plugin.py`; o arquivo resultante fica em `glpi-plugin/dist/estoquegraal-0.1.0.zip`.
+Plugin desenvolvido para posterior instalação e homologação no **GLPI 11.0.5**, sem acesso à instalação existente. Consulte [instalação/configuração](glpi-plugin/estoquegraal/README.md) e [testes locais e roteiro de homologação](glpi-plugin/estoquegraal/docs/verificacao.md). Gere o pacote com `python scripts/package-glpi-plugin.py`; o arquivo resultante fica em `glpi-plugin/dist/estoquegraal-0.1.1.zip`.

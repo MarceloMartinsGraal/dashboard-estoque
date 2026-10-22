@@ -13,3 +13,5 @@ Alvo explícito GLPI11.0.5 (min11.0.5/max11.0.6 exclusivo), PHP>=8.2/64bits/curl
 Lacunas documentadas: cadastro não abre saldo; integração não tem endpoint de identidade da credencial (administrador deve conferir instância; resposta de movimento/resultado deve coincidir). Nenhum endpoint fictício ou alteração silenciosa no dashboard.
 
 Verificado: 11 grupos PHP, 2 testes Node, teste cURL com servidor sintético, prévia Edge isolada e sintaxe PHP/JS. Revisão estática independente concluída; correção da corrida de retomada validada em navegador. Instalação/CSRF/criptografia/banco do GLPI real continuam pendentes, conforme documentação.
+
+Atualização 0.1.1: lacuna de primeira entrada resolvida para novos cadastros da integração por inicialização auditada de base zero (sem movimento), preservando produtos existentes/legado. Backend também precisa ser atualizado. Teste de regressão observado falhar antes da correção; 61 testes passaram após a alteração.

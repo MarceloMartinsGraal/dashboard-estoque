@@ -30,7 +30,7 @@
         const rows=el('div');
         for(const p of r.items){
           const card=el('article');card.className='eg-product';card.append(el('strong',p.description||'Descrição pendente'),el('p',`Código/ID: ${p.legacyId||p.id} · ${C.quantity(p.quantity)} ${p.unit} · ${p.active?'Ativo':'Inativo'}`));
-          if(!C.positive(p.quantity))card.append(el('p','Sem saldo disponível para saída. Pode receber entrada após abertura.'));
+          if(!C.positive(p.quantity))card.append(el('p','Sem saldo disponível para saída. Pode receber entrada se a base operacional estiver inicializada.'));
           const select=el('button','Selecionar e ver armários');select.type='button';select.addEventListener('click',safe(()=>selectProduct(p)));card.append(select);rows.append(card);
         }
         if(!r.items.length)rows.append(el('p','Nenhum produto encontrado. Revise a busca antes de cadastrar.'));
@@ -47,7 +47,7 @@
       const version=selectionVersion.invalidate();q('[data-eg-review]').disabled=true;movement.elements.locationId.replaceChildren(new Option('Selecione explicitamente um armário',''));product=p;q('[data-eg-selected]').hidden=false;q('[data-eg-product-name]').textContent=p.description||'Descrição pendente';q('[data-eg-product-info]').textContent='Carregando saldo…';
       const b=await call('balances',{productId:p.id});if(!selectionVersion.current(version))return;
       product={...p,quantity:b.total,openingDate:b.openingDate,active:b.active};displayBalances(b);
-      q('[data-eg-product-info]').textContent=`Saldo: ${C.quantity(b.total)} ${b.unit}. ${b.openingDate?'Abertura registrada.':'Abertura pendente: aprove-a no dashboard antes de registrar uma entrada ou saída.'}`;
+      q('[data-eg-product-info]').textContent=`Saldo: ${C.quantity(b.total)} ${b.unit}. ${b.openingDate?'Base operacional inicializada.':'Abertura pendente: aprove-a no dashboard antes de registrar uma entrada ou saída.'}`;
       q('[data-eg-review]').disabled=!canMove||!b.active||!b.openingDate;
       await locations(true);
     }
@@ -87,7 +87,7 @@
       showIntent(i);if(i.state!=='done')return;
       if(i.operation==='product'){
         create.hidden=true;const p={id:i.result.id,description:i.summary.description,unit:'unidade',active:true,quantity:'0.000',openingDate:null};await selectProduct(p);movement.elements.kind.value='entrada';await locations(true);
-        say('Produto cadastrado sem quantidade. Abra o saldo no dashboard; depois registre uma entrada separada. O cadastro não será repetido se a entrada falhar.');
+        say('Produto cadastrado sem quantidade. Selecione entrada, armário e quantidade; revise e confirme a operação separada. O cadastro não será repetido se a entrada falhar.');
       }else{
         say('Movimentação confirmada.');if(product)await selectProduct(product);
         await history();await search();

@@ -18,7 +18,7 @@ POSTs usam `Idempotency-Key`. A intenção local mantém corpo imutável e aquis
 
 O contrato foi confrontado com documentação e código NestJS existentes, sem alterar seus endpoints. Quantidades usam strings decimais do contrato e unidades inteiras na operação atual, sem cálculos em ponto flutuante.
 
-Lacunas conhecidas: não existe endpoint de abertura; cadastro seguido de entrada requer abertura intermediária no dashboard. Não existe endpoint de identificação da credencial: o administrador precisa conferir a instância da credencial. Respostas de movimentos e consultas de operação são conferidas contra instância/usuário/chamado esperados, mas um catálogo vazio não comprova antecipadamente a identidade da credencial.
+Produtos novos criados pela integração usam base zero registrada atomicamente no cadastro, sem movimento/ledger. A primeira entrada é outro POST confirmado e idempotente. A data inicial é a do cadastro em America/Sao_Paulo; eventos anteriores são rejeitados. Produtos existentes/importados não são alterados. Não existe endpoint genérico de aprovação de abertura para o legado. Não existe endpoint de identificação da credencial: o administrador precisa conferir a instância da credencial. Respostas de movimentos e consultas de operação são conferidas contra instância/usuário/chamado esperados, mas um catálogo vazio não comprova antecipadamente a identidade da credencial.
 
 ## Executar localmente (raiz do repositório)
 
@@ -54,8 +54,12 @@ Esses testes não iniciam GLPI/MySQL. Não provam funcionamento completo no GLPI
 3. Testar perfis sem direitos, leitura, movimentação e cadastro, troca de perfil; negar chamado inacessível e outra entidade inclusive forjando IDs no AJAX. Testar sessão expirada e CSRF ausente/inválido.
 4. Testar busca com acentos, páginas, estados vazio/carregando/erro, teclado e celular; retornar HTML malicioso como descrição e comprovar renderização textual. Alternar rapidamente seleção e retomada de intenções, com respostas atrasadas.
 5. Testar entrada/saída, saldo insuficiente, funcionário inativo/sem vínculo, produto inativo, quantidade/data inválidas, observação obrigatória, armários e localização não informada.
-6. Cadastrar sem saldo, abrir no dashboard isolado e entrar separadamente. Falhar a entrada e conferir que o cadastro não se repete.
+6. Cadastrar sem saldo, conferir base zero e entrar separadamente pelo plugin. Conferir que legado pendente permanece bloqueado. Falhar a entrada e conferir que o cadastro não se repete.
 7. Testar duplo clique e duas sessões concorrentes; simular perda de resposta após gravação, reiniciar PHP e recuperar pela mesma chave. Conferir um único movimento e autoria/chamado corretos.
 8. Confirmar histórico/estornos, ausência de alteração ao abrir/fechar chamado, validação TLS e falhas de rede. Remover plugin e confirmar que histórico do dashboard permanece intacto.
 
 Somente após esse roteiro aprovar instalação operacional. Nenhum acesso ao GLPI existente foi necessário para desenvolver esta entrega.
+
+### Regressão da base zero (0.1.1)
+
+61 testes do backend passaram em PostgreSQL descartável local, incluindo importação/abertura do legado, concorrência e estorno existentes. Novo teste confirma base zero sem movimentos, replay de cadastro sem duplicação, primeira entrada concorrente com mesma chave produz um único movimento, segunda abertura bloqueada e legado pendente inalterado. Typecheck e lint passaram. Nenhuma migração ou atualização de produtos existentes é realizada.

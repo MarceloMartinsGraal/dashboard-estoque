@@ -292,7 +292,7 @@ test('instância isola resultado/histórico; rotação de credencial preserva ch
     409,
   );
 });
-test('cadastro explícito reutiliza validação, não abre saldo e não aceita campos financeiros', async () => {
+test('cadastro explícito reutiliza validação, não cria quantidade e não aceita campos financeiros', async () => {
   const body = {
     externalUserId: '0007',
     description: 'Produto cadastrado pela integração',
@@ -314,10 +314,10 @@ test('cadastro explícito reutiliza validação, não abre saldo e não aceita c
       await post(
         '/movements',
         'pending-opening',
-        movement({ productId: r.body.id }),
+        movement({ productId: r.body.id, eventDate: (await get('/products/'+r.body.id+'/balances')).body.openingDate }),
       )
     ).status,
-    409,
+    201,
   );
   assert.equal(
     (await post('/products', 'money', { ...body, price: '1' })).status,
@@ -520,4 +520,22 @@ test('cookies e escopos de escrita não autorizam leituras; referências não va
       (x) => x.id === unknown && x.code === 'NAO_INFORMADA',
     ),
   );
+});
+
+test('produto novo da integração inicia vazio; primeira entrada separada é idempotente e não permite segunda abertura', async()=>{
+ const body={description:'Novo sem legado '+Date.now(),active:true,externalUserId:'0007'};
+ const created=await post('/products','new-zero-base',body);assert.equal(created.status,201);
+ const id=created.body.id;const bal=await get('/products/'+id+'/balances');
+ assert.ok(bal.body.openingDate);assert.equal(bal.body.total,'0.000');
+ assert.equal((await db.pool.query('SELECT id FROM movements WHERE product_id=$1',[id])).rowCount,0);
+ assert.equal((await post('/products','new-zero-base',body)).body.id,id);
+ const input=movement({productId:id,eventDate:bal.body.openingDate,quantity:'2'});
+ const results=await Promise.all([post('/movements','first-new-entry',input),post('/movements','first-new-entry',input)]);
+ assert.ok(results.every(r=>r.status===201));assert.equal(results[0].body.id,results[1].body.id);
+ assert.equal((await get('/products/'+id+'/balances')).body.total,'2.000');
+ await assert.rejects(()=>new StockService(db).opening(actor,id,bal.body.openingDate,[{locationId:a,quantity:'2'}],'Não duplicar'),/Abertura já aprovada/);
+ assert.equal((await db.pool.query('SELECT id FROM movements WHERE product_id=$1',[id])).rowCount,1);
+ const old=await db.pool.query("INSERT INTO products(description,unit,source,legacy_id) VALUES('Legado pendente','unidade','synthetic-pending',123) RETURNING id");
+ assert.equal((await post('/movements','legacy-remains-pending',movement({productId:old.rows[0].id,eventDate:bal.body.openingDate}))).status,409);
+ assert.equal((await db.pool.query('SELECT opening_date FROM products WHERE id=$1',[old.rows[0].id])).rows[0].opening_date,null);
 });
