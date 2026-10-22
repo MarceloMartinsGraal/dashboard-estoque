@@ -4,9 +4,9 @@ Plugin desenvolvido para posterior instalação e homologação. Alvo exclusivo:
 
 O PHP conversa com a API existente do Dashboard Graal Empresa. O navegador conversa somente com o GLPI. Node.js não é necessário no servidor GLPI.
 
-- [Instalação, configuração, remoção e diagnóstico](docs/operacao.md)
-- [Contrato, testes e homologação pendente](docs/verificacao.md)
-- [Fontes oficiais consultadas](docs/fontes.json)
+- [Instalação, configuração, remoção e diagnóstico](../../docs/integracoes/glpi/operacao.md)
+- [Contrato, testes e homologação pendente](../../docs/integracoes/glpi/verificacao.md)
+- [Fontes oficiais consultadas](../../docs/integracoes/glpi/fontes.json)
 - [Contrato da API do dashboard](../../docs/integracoes/integration-v1.md) (no repositório completo)
 
 Código licenciado sob GPL-3.0-or-later. A marca Graal e seus arquivos visuais permanecem sujeitos aos direitos de seus titulares.

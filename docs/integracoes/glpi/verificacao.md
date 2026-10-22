@@ -63,3 +63,11 @@ Somente após esse roteiro aprovar instalação operacional. Nenhum acesso ao GL
 ### Regressão da base zero (0.1.1)
 
 61 testes do backend passaram em PostgreSQL descartável local, incluindo importação/abertura do legado, concorrência e estorno existentes. Novo teste confirma base zero sem movimentos, replay de cadastro sem duplicação, primeira entrada concorrente com mesma chave produz um único movimento, segunda abertura bloqueada e legado pendente inalterado. Typecheck e lint passaram. Nenhuma migração ou atualização de produtos existentes é realizada.
+
+### Organização dos artefatos
+
+Documentação centralizada em `docs/integracoes/glpi/`, mantendo código em `glpi-plugin/estoquegraal/`. Guias externos foram comparados byte a byte com os existentes e preservados; não foi extraído código de ZIP. Versão atual encontrada: 0.1.1, sem pacote posterior na entrega externa.
+
+Empacotamento: `python scripts/package-glpi-plugin.py`, a partir de qualquer diretório. Lê a versão do setup.php e grava ZIP/checksum em `dist/`, já ignorada por regra existente. O ZIP inclui a pasta raiz `estoquegraal/` e cópias dos guias centralizados, ajustando os links do README para o contexto do pacote.
+
+Nesta organização foram conferidos links locais, integridade/estrutura/conteúdo e repetibilidade do ZIP, regra de exclusão Git, preservação do código operacional e ausência de indicadores de segredos/dados pessoais nos artefatos destinados ao versionamento. Isso é uma inspeção limitada dos arquivos organizados, não auditoria de segurança completa. As evidências funcionais anteriores acima são históricas: a suíte funcional não foi reexecutada nesta tarefa, pois nenhuma funcionalidade mudou. Backend compatível e homologação GLPI continuam necessários.
