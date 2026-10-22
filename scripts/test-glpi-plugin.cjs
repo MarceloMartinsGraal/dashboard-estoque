@@ -1,0 +1,11 @@
+// Servidor sintético apenas em loopback. Node é ferramenta de teste, não dependência do plugin.
+const http=require('node:http');const {spawn}=require('node:child_process');const path=require('node:path');
+let writes=0,redirects=0,recorded=false;const token='11111111-1111-4111-8111-111111111111.'+'a'.repeat(64);
+const server=http.createServer(async(req,res)=>{try{const u=new URL(req.url,'http://127.0.0.1');if(req.headers.authorization!=='Bearer '+token)throw Error('Authorization ausente');let raw='';for await(const chunk of req)raw+=chunk;const b=raw?JSON.parse(raw):{};res.setHeader('Content-Type','application/json');const send=(s,v)=>{res.statusCode=s;res.end(JSON.stringify(v));};
+if(u.pathname==='/redirected'){redirects++;return send(500,{});}
+if(u.searchParams.has('status')){const s=Number(u.searchParams.get('status'));if(s===302)res.setHeader('Location','/redirected');return send(s,{message:'<script>remote</script>'});}
+if(req.method==='GET'&&u.pathname.endsWith('/products')){if(u.searchParams.get('q')!=='memória'||u.searchParams.get('page')!=='2')throw Error('Paginação/busca incorreta');return send(200,{items:[],page:2,limit:20,total:21});}
+if(req.method==='POST'){if(!req.headers['idempotency-key'])throw Error('Chave ausente');writes++;if(b.test==='opening')return send(409,{});if(b.test==='timeout'){recorded=true;return setTimeout(()=>send(201,{id:'synthetic-recorded'}),1400);}return send(201,{id:'11111111-1111-4111-8111-111111111111',kind:b.kind});}
+if(u.pathname.endsWith('/operations/http.timeout')&&recorded)return send(200,{result:{id:'synthetic-recorded'}});send(404,{});
+}catch(e){process.stderr.write(e.message+'\n');res.statusCode=500;res.end('{}');}});
+server.listen(0,'127.0.0.1',()=>{const binary=process.env.PHP_BINARY||'php';const args=[];if(process.env.PHP_EXTENSION_DIR)args.push('-d','extension_dir='+process.env.PHP_EXTENSION_DIR,'-d','extension=curl');args.push(path.resolve('glpi-plugin/estoquegraal/tests/http.php'),'http://127.0.0.1:'+server.address().port+'/api/integration/v1');const child=spawn(binary,args,{stdio:'inherit'});child.on('error',e=>{console.error(e.message);server.close();process.exitCode=1;});child.on('exit',code=>{if(writes!==5||redirects!==0){console.error('Contagem inesperada:',writes,redirects);code=1;}server.close();process.exitCode=code||0;});});

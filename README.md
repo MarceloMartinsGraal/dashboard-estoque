@@ -199,3 +199,7 @@ No banco descartável vazio indicado por TEST_DATABASE_URL, `npm run verify` exe
 A manutenção preserva contratos, UI e regras: paginação centralizada com limites iguais, dependência não utilizada removida, montagem das distribuições com Map e logs JSON sanitizados para falhas HTTP/CLI. Nenhuma migração ou atualização de dependências. Ver [diagnóstico/plano](docs/maintenance-plan.md) e [evidências da revisão](docs/maintenance-validation.md).
 
 **Validação desta manutenção (22/10/2026):** linha de base57 testes; após alterações60 testes aprovados, tipos/lint/build aprovados, ensaio nativo com banco vazio/cinco migrações idempotentes/health200/integração503. Revisão independente sem achados relevantes. Docker, Nginx/HTTPS e restauração continuam pendentes de ensaio no ambiente apropriado; não houve publicação ou alteração no servidor.
+
+## Plugin Estoque Graal para GLPI
+
+Plugin desenvolvido para posterior instalação e homologação no **GLPI 11.0.5**, sem acesso à instalação existente. Consulte [instalação/configuração](glpi-plugin/estoquegraal/README.md) e [testes locais e roteiro de homologação](glpi-plugin/estoquegraal/docs/verificacao.md). Gere o pacote com `python scripts/package-glpi-plugin.py`; o arquivo resultante fica em `glpi-plugin/dist/estoquegraal-0.1.0.zip`.
