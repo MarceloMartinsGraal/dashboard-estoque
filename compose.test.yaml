@@ -14,6 +14,8 @@ services:
       retries: 30
   tests:
     build: {context: ., target: test}
+    # Compartilha a rede do banco: as suítes exigem PostgreSQL em loopback.
+    network_mode: service:db_test
     environment:
-      TEST_DATABASE_URL: postgresql://synthetic_runner:synthetic_test_only@db_test:5432/graal_test
+      TEST_DATABASE_URL: postgresql://synthetic_runner:synthetic_test_only@127.0.0.1:5432/graal_test
     depends_on: {db_test: {condition: service_healthy}}

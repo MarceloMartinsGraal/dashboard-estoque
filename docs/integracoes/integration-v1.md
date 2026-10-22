@@ -138,6 +138,133 @@ Os testes e o simulador aplicam as migrações automaticamente **nesse banco de 
 
 O simulador sobe sua própria API em porta aleatória de loopback, cria fixtures e uma credencial efêmera e a revoga ao terminar. Demonstra cadastro explícito, busca, abertura zero de fixture, entrada de 2, replay da mesma entrada, saída de 1 e consulta de resultado/histórico. A saída esperada inclui `simulatedOnly: true`, `balance: "1.000"` e `history: 2`; IDs variam. Não imprime segredo, não depende de GLPI e não chama rede externa. As fixtures permanecem no banco descartável.
 
-Para a futura implantação Docker, a opção precisa ser passada explicitamente ao processo da API (por exemplo `INTEGRATION_ENABLED=true` em override revisado); não é ativada automaticamente pelo .env do host. Manter desabilitada nesta etapa. Sem alteração de Nginx ou publicação nesta entrega.
+Para a futura implantação Docker, a opção precisa ser passada explicitamente ao processo da API (por exemplo `INTEGRATION_ENABLED=true` em override revisado); não é ativada automaticamente pelo .env do host. Manter desabilitada em produção nesta etapa. Sem alteração de Nginx ou publicação nesta entrega.
+
+### Credencial local de teste no Docker de desenvolvimento
+
+Passo a passo para chamar a API pelo `compose.dev.yaml` (`http://localhost:8080`), como faria o futuro servidor do plugin. Somente para o banco **local** de desenvolvimento: nunca execute contra produção. Cliente, vínculo e auditoria ficam gravados no banco local (a auditoria é imutável); escritas pela API criam registros reais nesse banco. Procedimento validado em pilha descartável em 22/10/2026.
+
+Use um único terminal PowerShell, na raiz do repositório, do início ao fim: o segredo fica só em variáveis da sessão e não é exibido.
+
+**1. Subir a pilha com a integração habilitada.** O override `compose.dev.integration.yaml` apenas define `INTEGRATION_ENABLED=true` na API; a migração 005 é aplicada pelo serviço `migrate`. Não use `down -v`.
+
+```powershell
+docker compose -f compose.dev.yaml -f compose.dev.integration.yaml up -d --build --wait
+```
+
+Sem o override, as rotas `/api/integration/v1` retornam 503.
+
+**2. Preparar o acesso ao banco local.** A função envia SQL pela entrada padrão ao `psql` do contêiner `db`, com o usuário dono definido no `.env`. `$OutputEncoding` preserva acentos no envio.
+
+```powershell
+$OutputEncoding = New-Object System.Text.UTF8Encoding $false
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+function Sql([string]$s) { $s | docker compose -f compose.dev.yaml exec -T db sh -c 'psql -X -q -tA -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' }
+Sql "SELECT id, username, name, manages_accounts FROM employees WHERE active ORDER BY username;"
+```
+
+**3. Definir instância, usuário externo e funcionários.** Copie os UUIDs da lista anterior. `$funcionario` é quem constará como autor das operações vindas do usuário externo; `$admin` é o responsável (`manages_accounts = t`) que registra a decisão na auditoria. O usuário externo é texto exato, com zeros preservados.
+
+```powershell
+$instancia = 'glpi-local-teste'
+$usuarioExterno = '0007'
+$funcionario = 'UUID-DO-FUNCIONARIO'
+$admin = 'UUID-DO-RESPONSAVEL'
+```
+
+**4. Gerar o segredo e o hash.** 32 bytes aleatórios em hexadecimal minúsculo; o hash é SHA-256 do texto hexadecimal ASCII. Não imprima `$segredo`.
+
+```powershell
+$bytes = New-Object byte[] 32
+[Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+$segredo = -join ($bytes | ForEach-Object { $_.ToString('x2') })
+$hash = -join ([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::ASCII.GetBytes($segredo)) | ForEach-Object { $_.ToString('x2') })
+```
+
+**5. Cadastrar cliente inativo, vínculo e auditoria** numa única transação. Escopos completos e validade de 7 dias; reduza conforme o teste. Retorna somente o UUID do cliente.
+
+```powershell
+$clienteId = Sql @"
+\set instancia '$instancia'
+\set usuario '$usuarioExterno'
+\set funcionario '$funcionario'
+\set admin '$admin'
+\set hash '$hash'
+BEGIN;
+WITH c AS (
+  INSERT INTO integration_clients(instance_id,name,token_hash,scopes,expires_at)
+  VALUES (:'instancia', 'GLPI local de teste', :'hash',
+          ARRAY['read','products:write','movements:write'], now() + interval '7 days')
+  RETURNING id),
+l AS (
+  INSERT INTO external_employee_links(instance_id,external_user_id,employee_id)
+  VALUES (:'instancia', :'usuario', :'funcionario'::uuid)),
+a AS (
+  INSERT INTO audit_log(actor_id,action,entity,entity_id,details)
+  SELECT :'admin'::uuid, 'integration_client_create', 'integration_client', c.id::text,
+         jsonb_build_object('instanceId', :'instancia', 'externalUserId', :'usuario',
+                            'employeeId', :'funcionario', 'scopes', 'read,products:write,movements:write',
+                            'ambiente', 'local-teste')
+  FROM c)
+SELECT id FROM c;
+COMMIT;
+"@
+$clienteId
+```
+
+Se o vínculo `(instância, usuário externo)` já existir, a transação inteira é desfeita; escolha outro usuário externo ou reutilize o vínculo existente, removendo o `l AS (...)`.
+
+**6. Conferir e ativar.** Enquanto inativo, qualquer chamada retorna 401. Revise o cliente e então ative, registrando a ativação.
+
+```powershell
+Sql "SELECT id, instance_id, scopes, active, expires_at FROM integration_clients WHERE id = '$clienteId';"
+Sql @"
+\set cliente '$clienteId'
+\set admin '$admin'
+BEGIN;
+UPDATE integration_clients SET active = true WHERE id = :'cliente'::uuid;
+INSERT INTO audit_log(actor_id,action,entity,entity_id,details)
+VALUES (:'admin'::uuid, 'integration_client_activate', 'integration_client', :'cliente', '{"ambiente":"local-teste"}');
+COMMIT;
+"@
+```
+
+**7. Chamar a API.** O token é `<uuid-do-cliente>.<segredo>`. Leituras não alteram dados:
+
+```powershell
+$base = 'http://localhost:8080/api/integration/v1'
+$h = @{ Authorization = "Bearer $clienteId.$segredo" }
+Invoke-RestMethod "$base/locations?limit=20" -Headers $h
+Invoke-RestMethod "$base/products?q=mem%C3%B3ria&limit=20" -Headers $h
+Invoke-RestMethod "$base/tickets/000042/movements" -Headers $h
+```
+
+Escritas exigem `Idempotency-Key`; repetir a mesma chave e o mesmo corpo devolve o resultado original sem duplicar. Exemplo de cadastro sem estoque, que gera um produto real no banco local:
+
+```powershell
+$json = @{ description = 'Produto de teste da integração'; active = $true; externalUserId = $usuarioExterno } | ConvertTo-Json
+$prod = Invoke-RestMethod "$base/products" -Method Post -Headers ($h + @{ 'Idempotency-Key' = 'local-produto-001' }) -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes($json))
+Invoke-RestMethod "$base/products/$($prod.id)/balances" -Headers $h
+Invoke-RestMethod "$base/operations/local-produto-001" -Headers $h
+```
+
+Entradas e saídas (`POST /movements`, corpo na seção [Exemplos fictícios](#exemplos-fictícios)) só funcionam em produto com abertura aprovada e alteram o saldo local de forma permanente; correções são feitas por estorno no dashboard.
+
+**8. Revogar e limpar a sessão** ao terminar. Cliente revogado recebe 401 imediatamente; o registro não é apagado.
+
+```powershell
+Sql @"
+\set cliente '$clienteId'
+\set admin '$admin'
+BEGIN;
+UPDATE integration_clients SET active = false WHERE id = :'cliente'::uuid;
+INSERT INTO audit_log(actor_id,action,entity,entity_id,details)
+VALUES (:'admin'::uuid, 'integration_client_revoke', 'integration_client', :'cliente', '{"ambiente":"local-teste"}');
+COMMIT;
+"@
+Remove-Variable segredo, hash, h, bytes
+```
+
+O token deixa de existir ao fechar o terminal. Para testar de novo, repita a partir do passo 4 criando outro cliente na mesma instância (o vínculo do passo 5 já existe: remova o `l AS (...)`). Credenciais de homologação ou produção seguem o procedimento administrativo da seção [Vínculo explícito e administração futura](#vínculo-explícito-e-administração-futura), com segredo guardado no gestor de segredos do servidor do plugin.
 
 Contrato legível por máquina: [OpenAPI 3.1](integration-v1.openapi.json), OpenAPI 3.1 estático. O projeto não usa Swagger em runtime; nenhuma biblioteca/interface Swagger foi instalada. Documentação descreve apenas endpoints do dashboard.

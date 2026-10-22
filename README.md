@@ -184,6 +184,8 @@ node scripts/simulate-integration.cjs
 
 `npm test` compila e roda a suíte, incluindo a integração. O simulador inicia sua própria API local, cria dados e credencial efêmera de teste e a revoga ao finalizar. Esperado: `simulatedOnly: true`, saldo `1.000` e histórico com `2` movimentos. Ambos aplicam migrações no banco indicado; as fixtures permanecem nele. Use outro banco vazio para repetir a suíte. Não é necessário iniciar a API operacional, alterar `.env` ou ativar credenciais reais. Não use a base operacional.
 
-O [guia completo](docs/integracoes/integration-v1.md#teste-rápido-em-powershell) explica como executar somente os testes da integração. Plugin, permissões do chamado, provisionamento real e homologação ficam para a etapa no GLPI.
+O [guia completo](docs/integracoes/integration-v1.md#teste-rápido-em-powershell) explica como executar somente os testes da integração. Para chamar a API no Docker de desenvolvimento, suba com `docker compose -f compose.dev.yaml -f compose.dev.integration.yaml up -d --build --wait` e siga o [passo a passo da credencial local](docs/integracoes/integration-v1.md#credencial-local-de-teste-no-docker-de-desenvolvimento).
+
+`compose.test.yaml` executa as suítes na rede do banco de testes (`127.0.0.1`), pois a suíte de integração recusa bancos fora do loopback. Plugin, permissões do chamado, provisionamento real e homologação ficam para a etapa no GLPI.
 
 Verificação desta preparação: **57 testes aprovados** em PostgreSQL 18.4 temporário loopback, typecheck e build aprovados, contrato JSON e referências conferidos, demonstração HTTP local concluída com saldo 1 após entrada 2/saída 1 e replay sem duplicação. Revisão independente estática sem achados relevantes. Migração 005 executada somente em bancos temporários de testes; nenhum acesso ao GLPI ou credencial real.
