@@ -18,11 +18,8 @@ import { z } from 'zod';
 import { SessionGuard } from './auth';
 import { Database, audit } from './db';
 import { formatQuantity } from './quantity';
-import { text, uuid, validate } from './validation';
-const pageFields = {
-  page: z.coerce.number().int().min(1).max(100000).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(50),
-};
+import { pageFields, text, uuid, validate } from './validation';
+
 @Controller()
 @UseGuards(SessionGuard)
 export class CatalogController {

@@ -1,5 +1,7 @@
 # Correção de visibilidade — 21/10/2026
 
+> Registro histórico da etapa correspondente. Regras e procedimentos atuais: [AGENTS.md](../AGENTS.md), [desenvolvimento](development.md) e [operação](operations.md). Menções a metro/contagem obrigatória para todo legado podem ter sido superadas pelas decisões de 21/10/2026.
+
 Escopo: reproduzir conteúdo por armário e importação antes de corrigir. Sem mudanças nos dados reais ou no cálculo de saldo.
 
 1. Regressões: sequência A2 → A5 → A4 → A2/B2, localização não informada e ausência de linhas duplicadas; legado por padrão; relatório e idempotência da importação.

@@ -2,6 +2,8 @@
 
 Estes são procedimentos para o responsável executar futuramente. Nenhum foi executado no servidor nesta tarefa. Não use `runserver`, Vite ou `NODE_ENV=development` como servidor público.
 
+Para ensaio privado antes de publicar, consultar [servidor de testes](test-server.md) e [desenvolvimento](development.md).
+
 ## Preparação
 
 1. Instalar Docker Engine e plugin Compose v2 conforme a documentação oficial do Ubuntu/Docker; manter o host atualizado.
@@ -37,7 +39,7 @@ docker compose run --rm --no-deps api node dist/backend/bootstrap.js
 docker compose up -d api nginx
 ```
 
-Migrações **não** são executadas automaticamente ao iniciar API. A CLI usa um lock de migração e verifica checksum dos arquivos aplicados; nunca edite migrações já aplicadas. Nesta entrega só há criação inicial e chave de fontes; não há migração destrutiva.
+Migrações **não** são executadas automaticamente ao iniciar API. A CLI usa um lock de migração e verifica checksum dos arquivos aplicados; nunca edite migrações já aplicadas. Há cinco migrações versionadas (001 a005). A004 descontinua metros e exige conciliação prévia se houver frações; a005 cria a preparação de integração sem credenciais. Esta manutenção não cria nem modifica migrações.
 
 O primeiro responsável tem conta individual. Somente responsáveis designados administram contas; funcionários têm permissões operacionais completas. Não compartilhar contas. Não publicar sem definir quem assume essa responsabilidade.
 

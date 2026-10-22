@@ -2,9 +2,9 @@
 
 Sistema de estoque único, com localização por armários e contas individuais. Sem módulo financeiro. Backend Node.js/TypeScript/NestJS; PostgreSQL; frontend TypeScript/HTML/CSS com Vite.
 
-## Situação desta entrega
+## Estado atual
 
-Implementação inicial: autenticação, catálogo, abertura por contagem física, entradas/saídas/ajustes, realocação, estorno, histórico operacional/legado e prévia/confirmação idempotente da importação. Nenhum dado legado é disponibilidade operacional. Nenhuma abertura é aprovada automaticamente.
+Implementação inicial: autenticação, catálogo, abertura por contagem física, entradas/saídas/ajustes, realocação, estorno, histórico operacional/legado e prévia/confirmação idempotente da importação. O histórico legado fica fora do livro de saldos. Pela decisão atual, a confirmação pode criar uma abertura única pelo saldo líquido em localização não informada; negativos abrem zerados com pendência. Não há dupla contagem.
 
 Sem commit, push, deploy, certificado real ou importação em produção realizados pelo agente. Arquivos reais da auditoria permanecem fora do repositório. Não há conta ou senha operacional padrão.
 
@@ -82,7 +82,7 @@ docker compose -f compose.test.yaml down
 
 O compose de testes não publica portas, usa dados temporários e credenciais exclusivamente sintéticas; não é configuração de produção. Use um projeto de testes exclusivo e limpo em cada execução. Alternativa: defina `TEST_DATABASE_URL` apontando para um banco novo e descartável cujo nome termine em `_test`; execute `npm test`. A suíte cria apenas dados sintéticos, não limpa nem substitui uma base existente. Reutilizar a mesma base de teste não é suportado; crie outra base para cada execução.
 
-**Resultado desta execução:** `npm run typecheck` e `npm run build` aprovados; 42 testes automatizados passaram em PostgreSQL real 18.4 isolado. No Edge headless, login, consulta, saída pelo formulário com conferência do saldo no banco, histórico, viewport móvel de 390 px e logout passaram sem erros JavaScript. A revisão independente direcionada teve os achados importantes corrigidos com testes. Docker/Compose, Nginx/HTTPS e restauração no Ubuntu ainda não foram executados, pois Docker não está disponível nesta máquina.
+**Registro histórico da etapa inicial (não valida o checkout atual):** `npm run typecheck` e `npm run build` aprovados; 42 testes automatizados passaram em PostgreSQL real 18.4 isolado. No Edge headless, login, consulta, saída pelo formulário com conferência do saldo no banco, histórico, viewport móvel de 390 px e logout passaram sem erros JavaScript. A revisão independente direcionada teve os achados importantes corrigidos com testes. Docker/Compose, Nginx/HTTPS e restauração no Ubuntu ainda não foram executados, pois Docker não está disponível nesta máquina.
 
 Os testes verificam precisão, abertura pendente, saldo no armário, disputa concorrente, realocação, estorno, retroatividade, autenticação, CSRF, sessão, inativação, campos extras e idempotência. Consulte `tests/` para os cenários completos.
 
@@ -106,7 +106,7 @@ Neste Windows foi usado PostgreSQL real **18.4** temporário em `work/`, com bin
 1. Preserve `graal_estoque.original.json` em armazenamento protegido, com cópia e checksum. Não o inclua no Git nem o disponibilize pelo Nginx.
 2. Na tela Importação, escolha o original ou a cópia organizada para **validar e gerar prévia**. Essa etapa grava só o lote saneado de revisão e a auditoria, sem cadastrar produtos nem movimentos.
 3. Confira contagens, saldos históricos por produto/unidade, evidências zeradas e pendências. A cópia organizada altera somente ordem; não é homologação.
-4. A confirmação exige ciência explícita de que as pendências permanecem segregadas. Ela disponibiliza **somente histórico legado**, sem abrir saldo e sem incorporar dados financeiros.
+4. A confirmação exige ciência explícita das pendências. Preserva o histórico legado e cria uma única abertura pelo líquido entradas − saídas em localização não informada, com corte na última data legada. Saldo negativo abre zero e mantém pendência; não incorpora financeiro nem soma o histórico novamente ao ledger.
 5. Mesmo checksum retorna o lote existente. Outro checksum com os mesmos IDs e conteúdo não duplica registros. O mesmo ID com conteúdo divergente bloqueia toda a confirmação, em vez de sobrescrever.
 6. Ao confirmar a importação, cada produto legado abre com o saldo líquido do histórico (entradas − saídas) em “Localização não informada”, com data de corte igual à última data do legado. Saldos negativos abrem zerados e permanecem nas pendências. O histórico não entra no livro, então não há dupla contagem. Para lotes já confirmados, use **Abrir saldos pendentes pelo histórico já importado** na tela Importação.
 
@@ -125,7 +125,7 @@ Referências conferidas: 608 produtos; 27 categorias; 3.058 movimentos (1.233 en
 Leia `docs/operations.md`. Defina domínio/DNS, responsáveis por contas/backups, política de acesso e contagem física. Prepare HTTPS, valide a restauração, execute os testes no Ubuntu e revise os certificados/segredos e os arquivos de implantação. A existência dos arquivos Docker não significa que o servidor foi configurado ou que a publicação foi validada.
 
 
-## Melhorias de histórico, armários e marca
+## Registro histórico: melhorias de histórico, armários e marca
 
 - Histórico em abas Entradas, Saídas, Realocações e Aberturas. Ajustes pertencem à direção correspondente; um estorno é mostrado pela direção inversa do lançamento original. Realocações e seus estornos não são entradas/saídas globais.
 - Filtros combináveis no PostgreSQL: produto por descrição/código legado/ID interno, categoria, subcategoria, armário, período da **data do evento**, motivo, funcionário, chamado e origem. Busca do produto ignora caixa e acentos portugueses sem alterar os textos gravados. A resposta `/api/history` agora contém `items`, `total`, `page` e `limit`; quantidades permanecem texto decimal canônico.
@@ -141,7 +141,7 @@ Verificações desta melhoria: 42 testes sintéticos aprovados no PostgreSQL 18.
 
 Para carregar as alterações localmente, execute `npm run build` e reinicie a API se ela não estiver sendo executada com `npm run dev:api`. O frontend de desenvolvimento continua em `npm run dev:web`.
 
-## Correção de visibilidade de saldos e importação
+## Registro histórico: correção de visibilidade de saldos e importação
 
 O filtro padrão da API, da tela e do acesso pelo produto passou de Operacional para Todas as origens. O legado já era persistido, mas ficava oculto sem selecionar sua origem. Agora entradas/saídas importadas aparecem nas abas correspondentes com a identificação **Legado importado**. Filtros explícitos continuam válidos: uma URL antiga com `regime=operacional` permanece operacional; use **Limpar filtros** ou selecione Todas as origens. Quantidades zero recebem identificação de evidência segregada na tabela e nos detalhes.
 
@@ -189,3 +189,13 @@ O [guia completo](docs/integracoes/integration-v1.md#teste-rápido-em-powershell
 `compose.test.yaml` executa as suítes na rede do banco de testes (`127.0.0.1`), pois a suíte de integração recusa bancos fora do loopback. Plugin, permissões do chamado, provisionamento real e homologação ficam para a etapa no GLPI.
 
 Verificação desta preparação: **57 testes aprovados** em PostgreSQL 18.4 temporário loopback, typecheck e build aprovados, contrato JSON e referências conferidos, demonstração HTTP local concluída com saldo 1 após entrada 2/saída 1 e replay sem duplicação. Revisão independente estática sem achados relevantes. Migração 005 executada somente em bancos temporários de testes; nenhum acesso ao GLPI ou credencial real.
+
+## Manutenção e preparação do servidor de testes
+
+Referências vigentes: [desenvolvimento/variáveis/comandos](docs/development.md), [ensaio privado do servidor e logs](docs/test-server.md), [operação/HTTPS/backup/restore](docs/operations.md) e [contrato da integração](docs/integracoes/integration-v1.md). Planos antigos têm indicação de registro histórico. Integração real com GLPI não foi homologada.
+
+No banco descartável vazio indicado por TEST_DATABASE_URL, `npm run verify` executa lint (tipos e código sem uso), build e a suíte já compilada. `npm run typecheck`, `npm run lint`, `npm run build` e `npm test` permanecem disponíveis individualmente. Não há ESLint instalado: lint usa o TypeScript existente. O Compose de testes roda o mesmo lint e testes compilados; não há workflow externo ou execução remota configurada.
+
+A manutenção preserva contratos, UI e regras: paginação centralizada com limites iguais, dependência não utilizada removida, montagem das distribuições com Map e logs JSON sanitizados para falhas HTTP/CLI. Nenhuma migração ou atualização de dependências. Ver [diagnóstico/plano](docs/maintenance-plan.md) e [evidências da revisão](docs/maintenance-validation.md).
+
+**Validação desta manutenção (22/10/2026):** linha de base57 testes; após alterações60 testes aprovados, tipos/lint/build aprovados, ensaio nativo com banco vazio/cinco migrações idempotentes/health200/integração503. Revisão independente sem achados relevantes. Docker, Nginx/HTTPS e restauração continuam pendentes de ensaio no ambiente apropriado; não houve publicação ou alteração no servidor.

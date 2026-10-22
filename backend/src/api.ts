@@ -10,16 +10,12 @@ import {
 import type { Request } from 'express';
 import { z } from 'zod';
 import { SessionGuard } from './auth';
-import { Database } from './db';
 import { StockService, openingSchema, movementSchema } from './stock';
 import { eventDate, text, uuid, validate } from './validation';
 @Controller()
 @UseGuards(SessionGuard)
 export class StockController {
-  constructor(
-    private readonly stock: StockService,
-    private readonly db: Database,
-  ) {}
+  constructor(private readonly stock: StockService) {}
   @Get('products/:id/balances') balances(@Param('id') id: string) {
     return this.stock.balances(id);
   }

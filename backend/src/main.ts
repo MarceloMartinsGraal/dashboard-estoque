@@ -1,7 +1,15 @@
+import { logProcessFailure } from './diagnostics';
 import { createApp } from './app';
 createApp()
   .then((app) => app.listen(Number(process.env.PORT ?? 3000), '0.0.0.0'))
-  .catch(() => {
+  .catch((error) => {
+    logProcessFailure(
+      'startup',
+      error,
+      ['DATABASE_URL', 'SESSION_SECRET', 'PUBLIC_ORIGIN'].filter(
+        (key) => !process.env[key],
+      ),
+    );
     console.error(
       'Não foi possível iniciar. Confira configuração e migrações.',
     );

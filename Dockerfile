@@ -8,7 +8,7 @@ COPY tests ./tests
 RUN npm run build
 
 FROM build AS test
-CMD ["npm", "test"]
+CMD ["sh", "-c", "npm run lint && npm run test:compiled"]
 
 FROM node:24.22.0-bookworm-slim AS runtime
 WORKDIR /app

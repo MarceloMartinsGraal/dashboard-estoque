@@ -6,3 +6,7 @@ node_modules
 work
 dist
 *.log
+
+# Arquivo de origem versionado por decisão anterior; não utilizado pelas suítes.
+# Não enviar ao contexto/imagens de teste (nenhum dado é apagado).
+tests/graal_estoque.json

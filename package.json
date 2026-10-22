@@ -14,7 +14,10 @@
     "dev:web": "vite --config frontend/vite.config.mts",
     "migrate": "node --env-file=.env dist/backend/migrate.js",
     "bootstrap": "node --env-file=.env dist/backend/bootstrap.js",
-    "test": "npm run build:backend && node --test --test-concurrency=1 tests/*.test.cjs"
+    "test": "npm run build:backend && npm run test:compiled",
+    "lint": "tsc -p backend/tsconfig.json --noEmit --noUnusedLocals --noUnusedParameters && tsc -p frontend/tsconfig.json --noUnusedLocals --noUnusedParameters",
+    "test:compiled": "node --test --test-concurrency=1 tests/*.test.cjs",
+    "verify": "npm run lint && npm run build && npm run test:compiled"
   },
   "dependencies": {
     "@nestjs/common": "12.2.0",

@@ -1,5 +1,7 @@
 # Melhorias do dashboard — 21/10/2026
 
+> Registro histórico da etapa correspondente. Regras e procedimentos atuais: [AGENTS.md](../AGENTS.md), [desenvolvimento](development.md) e [operação](operations.md). Menções a metro/contagem obrigatória para todo legado podem ter sido superadas pelas decisões de 21/10/2026.
+
 Escopo aprovado no pedido: histórico com abas/filtros/URL, seleção de armários, quantidades e marca. Referência visual externa: Downloads/AGENTS.md; não substitui AGENTS.md operacional.
 
 1. Testar formatação decimal, consultas de histórico combinadas/paginadas e opções de armários sem associação prévia. Reproduzir catálogo desatualizado no navegador.

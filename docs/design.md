@@ -1,5 +1,7 @@
 # Estoque Graal — projeto aprovado pelo pedido de 21/10/2026
 
+> Registro histórico da etapa correspondente. Regras e procedimentos atuais: [AGENTS.md](../AGENTS.md), [desenvolvimento](development.md) e [operação](operations.md). Menções a metro/contagem obrigatória para todo legado podem ter sido superadas pelas decisões de 21/10/2026.
+
 ## Objetivo e limites
 Estoque único, armários, funcionários individuais, sem financeiro. Node.js/TypeScript/NestJS + PostgreSQL; Ubuntu 24.04; Nginx/HTTPS; Docker Compose. Sem commit, push, deploy ou carga em produção pelo agente.
 

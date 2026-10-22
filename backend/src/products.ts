@@ -8,12 +8,9 @@ import { PoolClient } from 'pg';
 import { z } from 'zod';
 import { Database, audit } from './db';
 import { formatQuantity } from './quantity';
-import { text, uuid, validate } from './validation';
+import { pageFields, text, uuid, validate } from './validation';
 import { foldSql, foldText } from './search';
-const pageFields = {
-  page: z.coerce.number().int().min(1).max(100000).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(50),
-};
+
 export const productSchema = z
   .object({
     id: uuid.optional(),

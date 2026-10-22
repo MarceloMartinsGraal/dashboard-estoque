@@ -3,7 +3,7 @@ import { BadRequestException } from '@nestjs/common';
 import { z } from 'zod';
 import { Database } from './db';
 import { formatQuantity } from './quantity';
-import { uuid, validate } from './validation';
+import { pageFields, uuid, validate } from './validation';
 const date = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -14,8 +14,7 @@ const date = z
   );
 const schema = z
   .object({
-    page: z.coerce.number().int().min(1).max(100000).default(1),
-    limit: z.coerce.number().int().min(1).max(100).default(50),
+    ...pageFields,
     flow: z
       .enum(['entrada', 'saida', 'realocacao', 'abertura'])
       .default('entrada'),

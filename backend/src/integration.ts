@@ -27,7 +27,7 @@ import { ProductService, productSchema } from './products';
 import { StockService, movementSchema } from './stock';
 import { formatQuantity, parseQuantity } from './quantity';
 import { queryHistory } from './history';
-import { validate, uuid } from './validation';
+import { pageFields, validate, uuid } from './validation';
 
 type Client = {
   id: string;
@@ -54,10 +54,7 @@ const externalId = z
     (v) => v === v.trim() && !/\p{Cc}/u.test(v),
     'Identificador textual inválido',
   );
-const pageFields = {
-  page: z.coerce.number().int().min(1).max(100000).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(50),
-};
+
 const moveSchema = movementSchema
   .omit({ ticket: true, justification: true, destinationId: true })
   .extend({
@@ -315,6 +312,7 @@ export class IntegrationService {
         [b.locations.map((l) => l.id)],
       )
     ).rows;
+    const locationsById = new Map(locations.map((l) => [l.id, l]));
     return {
       productId: id,
       unit: p.unit,
@@ -323,7 +321,7 @@ export class IntegrationService {
       ...b,
       locations: b.locations.map((l) => ({
         ...l,
-        ...locations.find((a) => a.id === l.id),
+        ...locationsById.get(l.id),
       })),
     };
   }
@@ -345,11 +343,13 @@ export class IntegrationService {
           'SELECT id,code,name,active FROM locations WHERE active ORDER BY code,id',
         )
       ).rows;
+      const balancesById = new Map(
+        balances.locations.map((l) => [l.id, l.quantity]),
+      );
       rows = all
         .map((l) => ({
           ...l,
-          quantity:
-            balances.locations.find((a) => a.id === l.id)?.quantity ?? '0.000',
+          quantity: balancesById.get(l.id) ?? '0.000',
         }))
         .filter(
           (l) =>

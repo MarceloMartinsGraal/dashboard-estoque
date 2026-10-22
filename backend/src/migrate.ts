@@ -1,3 +1,4 @@
+import { logProcessFailure } from './diagnostics';
 import { readFile, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
@@ -45,7 +46,8 @@ if (require.main === module) {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   migrate(pool)
     .then(() => console.log('Migrações aplicadas.'))
-    .catch(() => {
+    .catch((error) => {
+      logProcessFailure('migrate', error);
       console.error(
         'Falha na migração; confira o ambiente e a versão do banco.',
       );

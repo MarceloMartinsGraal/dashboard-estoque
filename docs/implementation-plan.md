@@ -1,5 +1,7 @@
 # Plano de implementação
 
+> Registro histórico da etapa correspondente. Regras e procedimentos atuais: [AGENTS.md](../AGENTS.md), [desenvolvimento](development.md) e [operação](operations.md). Menções a metro/contagem obrigatória para todo legado podem ter sido superadas pelas decisões de 21/10/2026.
+
 Execução direta nesta sessão; sem commits automáticos. O pedido já define arquitetura e autoriza avançar. Referência: docs/design.md.
 
 - [x] 1. Núcleo: migração, quantidades exatas, abertura, saídas concorrentes, transferências, estornos e ajustes. Testes contra PostgreSQL real isolado, incluindo saldo insuficiente e retroatividade.

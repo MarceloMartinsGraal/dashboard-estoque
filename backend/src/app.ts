@@ -1,3 +1,4 @@
+import { requestDiagnostics, captureDatabaseCode } from './diagnostics';
 import 'reflect-metadata';
 import {
   ArgumentsHost,
@@ -78,6 +79,7 @@ class AppModule {}
 class SafeErrors implements ExceptionFilter {
   catch(error: any, host: ArgumentsHost) {
     const res = host.switchToHttp().getResponse<Response>();
+    captureDatabaseCode(res, error);
     let status = 500,
       message = 'Falha interna; tente novamente';
     if (error instanceof HttpException) {
@@ -118,6 +120,7 @@ export async function createApp() {
   const express = app.getHttpAdapter().getInstance();
   express.disable('x-powered-by');
   if (production) express.set('trust proxy', 1);
+  app.use(requestDiagnostics);
   app.use(helmet());
   app.use(json({ limit: '12mb', strict: true }));
   const Store = connectPgSimple(session);
