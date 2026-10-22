@@ -1,0 +1,1575 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Dashboard Graal — Integração v1",
+    "version": "1.0.0",
+    "description": "Dashboard preparado para integração. Sem plugin ou chamadas GLPI. Desabilitado por padrão. Instância determinada pela credencial; permissões GLPI devem ser verificadas pelo futuro servidor do plugin. Ver integration-v1.md para erros e exemplos."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000/api/integration/v1",
+      "description": "Somente desenvolvimento local; futura publicação exige HTTPS."
+    }
+  ],
+  "paths": {
+    "/products": {
+      "get": {
+        "summary": "Buscar produtos inclusive sem saldo, sem caixa/acentos portugueses",
+        "security": [
+          {
+            "IntegrationBearer": []
+          }
+        ],
+        "x-required-scope": "read",
+        "responses": {
+          "400": {
+            "description": "Dados/chave inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Credencial ausente/inválida/revogada/expirada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente ou vínculo/funcionário inativo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso não encontrado na instância",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Saldo insuficiente, abertura pendente, referência inválida ou conflito de idempotência",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Integração desabilitada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Falha interna genérica",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Consulta concluída",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Products"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "default": ""
+            }
+          }
+        ]
+      },
+      "post": {
+        "summary": "Cadastrar explicitamente; sem gerar saldo",
+        "security": [
+          {
+            "IntegrationBearer": []
+          }
+        ],
+        "x-required-scope": "products:write",
+        "responses": {
+          "400": {
+            "description": "Dados/chave inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Credencial ausente/inválida/revogada/expirada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente ou vínculo/funcionário inativo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso não encontrado na instância",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Saldo insuficiente, abertura pendente, referência inválida ou conflito de idempotência",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Integração desabilitada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Falha interna genérica",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Resultado original; replay preserva a resposta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedProduct"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._:-]{1,120}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProduct"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/products/{id}/balances": {
+      "get": {
+        "summary": "Saldo operacional e distribuição",
+        "security": [
+          {
+            "IntegrationBearer": []
+          }
+        ],
+        "x-required-scope": "read",
+        "responses": {
+          "400": {
+            "description": "Dados/chave inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Credencial ausente/inválida/revogada/expirada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente ou vínculo/funcionário inativo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso não encontrado na instância",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Saldo insuficiente, abertura pendente, referência inválida ou conflito de idempotência",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Integração desabilitada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Falha interna genérica",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Consulta concluída",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Balances"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/locations": {
+      "get": {
+        "summary": "Armários ativos para entrada",
+        "security": [
+          {
+            "IntegrationBearer": []
+          }
+        ],
+        "x-required-scope": "read",
+        "responses": {
+          "400": {
+            "description": "Dados/chave inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Credencial ausente/inválida/revogada/expirada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente ou vínculo/funcionário inativo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso não encontrado na instância",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Saldo insuficiente, abertura pendente, referência inválida ou conflito de idempotência",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Integração desabilitada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Falha interna genérica",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Consulta concluída",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Locations"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "entrada"
+              ],
+              "default": "entrada"
+            }
+          }
+        ]
+      }
+    },
+    "/products/{id}/locations": {
+      "get": {
+        "summary": "Armários ativos; saída exige disponibilidade",
+        "security": [
+          {
+            "IntegrationBearer": []
+          }
+        ],
+        "x-required-scope": "read",
+        "responses": {
+          "400": {
+            "description": "Dados/chave inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Credencial ausente/inválida/revogada/expirada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente ou vínculo/funcionário inativo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso não encontrado na instância",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Saldo insuficiente, abertura pendente, referência inválida ou conflito de idempotência",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Integração desabilitada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Falha interna genérica",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Consulta concluída",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Locations"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "entrada",
+                "saida"
+              ],
+              "default": "entrada"
+            }
+          }
+        ]
+      }
+    },
+    "/movements": {
+      "post": {
+        "summary": "Registrar entrada ou saída pelo funcionário vinculado",
+        "security": [
+          {
+            "IntegrationBearer": []
+          }
+        ],
+        "x-required-scope": "movements:write",
+        "responses": {
+          "400": {
+            "description": "Dados/chave inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Credencial ausente/inválida/revogada/expirada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente ou vínculo/funcionário inativo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso não encontrado na instância",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Saldo insuficiente, abertura pendente, referência inválida ou conflito de idempotência",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Integração desabilitada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Falha interna genérica",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Resultado original; replay preserva a resposta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MovementResult"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._:-]{1,120}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMovement"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/operations/{key}": {
+      "get": {
+        "summary": "Consultar resultado após timeout; não executa novamente",
+        "security": [
+          {
+            "IntegrationBearer": []
+          }
+        ],
+        "x-required-scope": "read",
+        "responses": {
+          "400": {
+            "description": "Dados/chave inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Credencial ausente/inválida/revogada/expirada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente ou vínculo/funcionário inativo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso não encontrado na instância",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Saldo insuficiente, abertura pendente, referência inválida ou conflito de idempotência",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Integração desabilitada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Falha interna genérica",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Consulta concluída",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Operation"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._:-]{1,120}$"
+            }
+          }
+        ]
+      }
+    },
+    "/tickets/{ticketId}/movements": {
+      "get": {
+        "summary": "Histórico por instância/chamado, incluindo estornos",
+        "security": [
+          {
+            "IntegrationBearer": []
+          }
+        ],
+        "x-required-scope": "read",
+        "responses": {
+          "400": {
+            "description": "Dados/chave inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Credencial ausente/inválida/revogada/expirada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente ou vínculo/funcionário inativo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso não encontrado na instância",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Saldo insuficiente, abertura pendente, referência inválida ou conflito de idempotência",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Integração desabilitada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Falha interna genérica",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Consulta concluída",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/History"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "ticketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "flow",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "entrada",
+                "saida",
+                "realocacao",
+                "abertura"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "IntegrationBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "UUID.secret-hex-64",
+        "description": "Cliente revogável e expirável; hash no banco. Cookie não autentica. Placeholders da documentação não são segredos utilizáveis."
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": [
+          "statusCode",
+          "message"
+        ],
+        "properties": {
+          "statusCode": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "Quantity": {
+        "type": "string",
+        "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{3}$",
+        "example": "2.000",
+        "description": "Decimal canônico; duas unidades. Regra atual aceita apenas inteiros; sem float."
+      },
+      "ExternalReference": {
+        "type": "object",
+        "required": [
+          "instanceId",
+          "ticketId",
+          "externalUserId"
+        ],
+        "properties": {
+          "instanceId": {
+            "type": "string"
+          },
+          "ticketId": {
+            "type": "string"
+          },
+          "externalUserId": {
+            "type": "string"
+          }
+        }
+      },
+      "Product": {
+        "type": "object",
+        "required": [
+          "id",
+          "description",
+          "unit",
+          "active",
+          "legacyId",
+          "quantity",
+          "openingDate"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": {
+            "type": "string"
+          },
+          "unit": {
+            "const": "unidade"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "legacyId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "quantity": {
+            "$ref": "#/components/schemas/Quantity"
+          },
+          "openingDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          }
+        }
+      },
+      "Location": {
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "name",
+          "active"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "quantity": {
+            "$ref": "#/components/schemas/Quantity"
+          }
+        }
+      },
+      "Balances": {
+        "type": "object",
+        "required": [
+          "productId",
+          "unit",
+          "active",
+          "openingDate",
+          "total",
+          "locations"
+        ],
+        "properties": {
+          "productId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "unit": {
+            "const": "unidade"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "openingDate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "total": {
+            "$ref": "#/components/schemas/Quantity"
+          },
+          "locations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Location"
+            }
+          }
+        }
+      },
+      "CreateProduct": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "description",
+          "active",
+          "externalUserId"
+        ],
+        "properties": {
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "externalUserId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "unidade"
+            ],
+            "default": "unidade"
+          },
+          "categoryId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "default": null
+          },
+          "subcategoryId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "default": null
+          }
+        }
+      },
+      "CreatedProduct": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreateMovement": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "productId",
+          "kind",
+          "quantity",
+          "eventDate",
+          "locationId",
+          "reason",
+          "ticketId",
+          "externalUserId"
+        ],
+        "properties": {
+          "productId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "enum": [
+              "entrada",
+              "saida"
+            ]
+          },
+          "quantity": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,12}(\\.0{1,3})?$",
+            "maxLength": 24,
+            "description": "Positiva, inteira, máximo 9000000000000; zero é rejeitado."
+          },
+          "eventDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "enum": [
+              "chamado",
+              "uso_interno",
+              "rma",
+              "outro",
+              "correcao_estoque",
+              "recebimento"
+            ]
+          },
+          "ticketId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "externalUserId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "observation": {
+            "type": "string",
+            "maxLength": 2000,
+            "description": "Obrigatória para outro ou correcao_estoque"
+          }
+        }
+      },
+      "MovementResult": {
+        "type": "object",
+        "required": [
+          "id",
+          "productId",
+          "kind",
+          "quantity",
+          "eventDate",
+          "recordedAt",
+          "actorId",
+          "locationId",
+          "reason",
+          "observation",
+          "externalReference"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "productId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "enum": [
+              "entrada",
+              "saida"
+            ]
+          },
+          "quantity": {
+            "$ref": "#/components/schemas/Quantity"
+          },
+          "eventDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "observation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "externalReference": {
+            "$ref": "#/components/schemas/ExternalReference"
+          }
+        }
+      },
+      "Operation": {
+        "type": "object",
+        "required": [
+          "idempotencyKey",
+          "instanceId",
+          "operation",
+          "result",
+          "created_at"
+        ],
+        "properties": {
+          "idempotencyKey": {
+            "type": "string"
+          },
+          "instanceId": {
+            "type": "string"
+          },
+          "operation": {
+            "enum": [
+              "movement",
+              "product"
+            ]
+          },
+          "result": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MovementResult"
+              },
+              {
+                "$ref": "#/components/schemas/CreatedProduct"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "HistoryItem": {
+        "type": "object",
+        "description": "Contrato reaproveitado do histórico operacional, com vínculos externos. Campos legados permanecem null/false neste endpoint. Quantidade/deltas decimais canônicos.",
+        "required": [
+          "id",
+          "product_id",
+          "kind",
+          "quantity",
+          "event_date",
+          "recorded_at",
+          "author",
+          "actor_id",
+          "locations",
+          "regime",
+          "reversal_of",
+          "reversed_by",
+          "externalReference"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "product_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "quantity": {
+            "$ref": "#/components/schemas/Quantity"
+          },
+          "event_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "author": {
+            "type": "string"
+          },
+          "actor_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "ticket": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "observation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "regime": {
+            "const": "operacional"
+          },
+          "flow": {
+            "type": "string"
+          },
+          "reversal_of": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "reversed_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "externalReference": {
+            "$ref": "#/components/schemas/ExternalReference"
+          },
+          "locations": {
+            "type": "array",
+            "items": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Location"
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "delta"
+                  ],
+                  "properties": {
+                    "delta": {
+                      "type": "string",
+                      "pattern": "^-?[0-9]+\\.[0-9]{3}$"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "Products": {
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "limit"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Product"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        }
+      },
+      "Locations": {
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "limit"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Location"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        }
+      },
+      "History": {
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "limit"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HistoryItem"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        }
+      }
+    }
+  }
+}

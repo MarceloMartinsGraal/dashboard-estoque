@@ -15,6 +15,13 @@ import helmet from 'helmet';
 import { json } from 'express';
 import { timingSafeEqual } from 'node:crypto';
 import { Database } from './db';
+import { ProductService } from './products';
+import {
+  IntegrationController,
+  IntegrationGuard,
+  IntegrationService,
+  isIntegrationRequest,
+} from './integration';
 import {
   AuthController,
   AuthService,
@@ -36,12 +43,26 @@ class DatabaseModule {}
   providers: [AuthService],
 })
 class AuthModule {}
-@Module({ controllers: [StockController], providers: [StockService] })
+@Module({
+  controllers: [StockController],
+  providers: [StockService],
+  exports: [StockService],
+})
 class StockModule {}
-@Module({ controllers: [CatalogController] })
+@Module({
+  controllers: [CatalogController],
+  providers: [ProductService],
+  exports: [ProductService],
+})
 class CatalogModule {}
 @Module({ controllers: [ImportController], providers: [ImportService] })
 class ImportModule {}
+@Module({
+  imports: [StockModule, CatalogModule],
+  controllers: [IntegrationController],
+  providers: [IntegrationService, IntegrationGuard],
+})
+class IntegrationModule {}
 @Module({
   imports: [
     DatabaseModule,
@@ -49,6 +70,7 @@ class ImportModule {}
     StockModule,
     CatalogModule,
     ImportModule,
+    IntegrationModule,
   ],
 })
 class AppModule {}
@@ -105,26 +127,31 @@ export async function createApp() {
     createTableIfMissing: false,
     pruneSessionInterval: false,
   });
-  app.use(
-    session({
-      store,
-      secret,
-      name: production ? '__Host-graal.sid' : 'graal.sid',
-      resave: false,
-      saveUninitialized: false,
-      rolling: true,
-      cookie: {
-        httpOnly: true,
-        secure: production,
-        sameSite: 'lax',
-        path: '/',
-        maxAge: 8 * 60 * 60 * 1000,
-      },
-    }),
+  const sessionMiddleware = session({
+    store,
+    secret,
+    name: production ? '__Host-graal.sid' : 'graal.sid',
+    resave: false,
+    saveUninitialized: false,
+    rolling: true,
+    cookie: {
+      httpOnly: true,
+      secure: production,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 8 * 60 * 60 * 1000,
+    },
+  });
+  // Rotas entre serviços não leem, criam ou autenticam cookies pessoais.
+  app.use((req: Request, res: Response, next: NextFunction) =>
+    isIntegrationRequest(req) ? next() : sessionMiddleware(req, res, next),
   );
   app.use((req: Request, res: Response, next: NextFunction) => {
     res.setHeader('Cache-Control', 'no-store');
-    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    if (
+      !isIntegrationRequest(req) &&
+      !['GET', 'HEAD', 'OPTIONS'].includes(req.method)
+    ) {
       const token = req.headers['x-csrf-token'];
       const expected = req.session.csrf;
       if (

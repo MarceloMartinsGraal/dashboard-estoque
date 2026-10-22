@@ -160,3 +160,17 @@ Não há nova migração. Não recrie banco, volume, `.env` nem contas.
 - **Node + Vite:** na raiz, execute `npm run build`. Se a API está em `npm run dev:api`, ela reinicia ao atualizar o compilado. Se está em `npm start`, encerre esse processo com Ctrl+C e execute `npm start` novamente. Mantenha/inicie `npm run dev:web` em outro terminal e recarregue `http://localhost:5173` com Ctrl+F5.
 - **Docker de desenvolvimento:** execute `docker compose -f compose.dev.yaml up -d --build --wait` e recarregue `http://localhost:8080`. Não use `down -v`.
 - No Histórico, clique **Limpar filtros** se a URL antiga continha `regime=operacional`. Se o lote está apenas em Prévia, ainda é necessário revisar e confirmar a importação; não a confirme novamente para tentar criar saldo. Abertura continua exigindo contagem física aprovada.
+
+## Dashboard preparado para integração futura
+
+API versionada `/api/integration/v1`, desabilitada por padrão (`INTEGRATION_ENABLED=false`), exclusivamente para chamadas entre servidores autenticadas por Bearer revogável/expirável e com escopos. Sem cookie pessoal, conta técnica como autor, plugin GLPI, webhook ou chamadas externas nesta entrega.
+
+Disponível: busca de produtos sem caixa/acentos e por identificação (inclusive sem saldo), saldo/distribuição, armários para entrada/saída, cadastro explícito sem estoque, entrada/saída vinculadas a instância/chamado/usuário externo, consulta do resultado idempotente e histórico por chamado com estornos. Vínculo explícito com funcionário ativo obrigatório nas escritas. Reutiliza os serviços operacionais e a regra vigente de unidades inteiras, sem somar legado novamente.
+
+Migração nova: `backend/migrations/005_integration_v1.sql`, aditiva, sem dados/credenciais. Validada somente em PostgreSQL local isolado; revisar o destino antes de aplicar localmente. Não foi aplicada em produção. Lançamento, ledger, autoria, referência e resultado idempotente são gravados na mesma transação. Mesma chave/conteúdo retorna o original; conteúdo diferente conflita; chaves distintas podem representar operações intencionais iguais.
+
+Contrato/procedimento: [docs/integration-v1.md](docs/integration-v1.md). OpenAPI estático: [docs/integration-v1.openapi.json](docs/integration-v1.openapi.json), sem instalar Swagger. Plano e decisões: [docs/integration-plan.md](docs/integration-plan.md).
+
+Para testes, defina `TEST_DATABASE_URL` de banco descartável loopback cujo nome termine em `_test`. Execute `npm test` (fixtures sintéticas, sem GLPI). Após `npm run build:backend`, `node scripts/simulate-integration.cjs` demonstra cadastro, busca, abertura de fixture, entrada, saída, replay, saldo e resultado; gera somente credencial efêmera de teste, não imprime segredo e revoga ao finalizar. Nunca aponte para banco operacional. Preparar o dashboard não comprova que a integração esteja funcionando no GLPI: plugin, permissões do chamado, provisionamento real e homologação ficam para outra etapa.
+
+Verificação desta preparação: **57 testes aprovados** em PostgreSQL 18.4 temporário loopback, typecheck e build aprovados, contrato JSON e referências conferidos, demonstração HTTP local concluída com saldo 1 após entrada 2/saída 1 e replay sem duplicação. Revisão independente estática sem achados relevantes. Migração 005 executada somente em bancos temporários de testes; nenhum acesso ao GLPI ou credencial real.

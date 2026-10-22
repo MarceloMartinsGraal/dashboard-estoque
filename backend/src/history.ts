@@ -1,3 +1,4 @@
+import { foldSql as fold, foldText } from './search';
 import { BadRequestException } from '@nestjs/common';
 import { z } from 'zod';
 import { Database } from './db';
@@ -43,9 +44,6 @@ const schema = z
     ticket: z.string().trim().max(100).optional(),
   })
   .strict();
-// Normalização de consulta sem extensão PostgreSQL ou alteração dos dados persistidos.
-const fold = (sql: string) =>
-  `lower(translate(${sql},'áàâãäéèêëíìîïóòôõöúùûüçñÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑ','aaaaaeeeeiiiiooooouuuucnAAAAAEEEEIIIIOOOOOUUUUCN'))`;
 const historySql = `
  SELECT m.id,m.product_id,m.kind,m.quantity::text,m.event_date,m.recorded_at,m.reason,m.ticket,
  m.justification AS observation,m.actor_id,e.name AS author,p.description,p.original_description,p.legacy_id::text AS product_code,p.unit,p.category_id,p.subcategory_id,
@@ -61,8 +59,15 @@ const historySql = `
  jsonb_build_array(jsonb_build_object('id',a.id,'code',a.code,'name',a.name,'active',a.active,'delta',NULL))
  FROM legacy_movements m JOIN products p ON p.id=m.product_id JOIN locations a ON a.code='NAO_INFORMADA'
 `;
-export async function queryHistory(db: Database, query: unknown) {
-  const q = validate(schema, query);
+export async function queryHistory(
+  db: Database,
+  query: unknown,
+  external?: { instanceId: string; ticketId: string },
+) {
+  const q = validate(
+    schema,
+    external ? { ...(query as any), regime: 'operacional' } : query,
+  );
   if (q.dateFrom && q.dateTo && q.dateFrom > q.dateTo)
     throw new BadRequestException(
       'Data inicial deve ser anterior ou igual à final',
@@ -72,7 +77,13 @@ export async function queryHistory(db: Database, query: unknown) {
     params.push(v);
     return '$' + params.length;
   };
-  const where = [`h.flow=${bind(q.flow)}`];
+  const where: string[] = [];
+  if (!external || (query as any).flow) where.push(`h.flow=${bind(q.flow)}`);
+  if (external) {
+    where.push(
+      `EXISTS(SELECT 1 FROM integration_operations io WHERE io.instance_id=${bind(external.instanceId)} AND io.ticket_id=${bind(external.ticketId)} AND (io.movement_id=h.id OR io.movement_id=h.reversal_of))`,
+    );
+  }
   if (q.regime !== 'todos') where.push(`h.regime=${bind(q.regime)}`);
   for (const [key, column] of [
     ['productId', 'product_id'],
@@ -93,10 +104,7 @@ export async function queryHistory(db: Database, query: unknown) {
       `strpos(lower(COALESCE(h.ticket,'')),lower(${bind(q.ticket)}))>0`,
     );
   if (q.q) {
-    const normalized = q.q
-      .normalize('NFD')
-      .replace(/\p{M}/gu, '')
-      .toLowerCase();
+    const normalized = foldText(q.q);
     where.push(
       `strpos(${fold("COALESCE(h.description,'')||' '||COALESCE(h.original_description,'')||' '||COALESCE(h.product_code,'')||' '||h.product_id::text")},${bind(normalized)})>0`,
     );
@@ -105,7 +113,7 @@ export async function queryHistory(db: Database, query: unknown) {
     offset = bind((q.page - 1) * q.limit);
   const result = (
     await db.pool.query(
-      `WITH history AS (${historySql}), filtered AS (SELECT * FROM history h WHERE ${where.join(' AND ')}), page AS (SELECT * FROM filtered ORDER BY event_date DESC,id DESC LIMIT ${limit} OFFSET ${offset}) SELECT (SELECT COUNT(*)::text FROM filtered) AS total,COALESCE(jsonb_agg(to_jsonb(page) ORDER BY event_date DESC,id DESC),'[]'::jsonb) AS items FROM page`,
+      `WITH history AS (${historySql}), filtered AS (SELECT * FROM history h WHERE ${where.join(' AND ')}), page AS (SELECT filtered.*${external ? ", (SELECT jsonb_build_object('instanceId',io.instance_id,'ticketId',io.ticket_id,'externalUserId',io.external_user_id) FROM integration_operations io WHERE io.movement_id=COALESCE(filtered.reversal_of,filtered.id)) AS \"externalReference\"" : ''} FROM filtered ORDER BY event_date DESC,id DESC LIMIT ${limit} OFFSET ${offset}) SELECT (SELECT COUNT(*)::text FROM filtered) AS total,COALESCE(jsonb_agg(to_jsonb(page) ORDER BY event_date DESC,id DESC),'[]'::jsonb) AS items FROM page`,
       params,
     )
   ).rows[0];

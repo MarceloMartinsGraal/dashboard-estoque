@@ -151,7 +151,7 @@ export class StockService {
       return { id: movement?.id, productId: id, status: 'aprovada' };
     });
   }
-  async move(actor: string, input: MovementInput) {
+  async move(actor: string, input: MovementInput, client?: PoolClient) {
     const data = validate(movementSchema, input);
     if (data.reason === 'chamado' && !data.ticket)
       throw new BadRequestException('Chamado obrigatório');
@@ -168,7 +168,7 @@ export class StockService {
       throw new BadRequestException(
         'Armários de origem e destino devem ser distintos',
       );
-    return this.db.transaction(async (client) => {
+    const execute = async (client: PoolClient) => {
       const p = await this.lock(client, actor, data.productId);
       if (!p.cutoff)
         throw new ConflictException(
@@ -210,7 +210,8 @@ export class StockService {
       await this.checkBalances(client, p.id);
       await audit(client, actor, 'movimentar', 'movimentacao', m.id, data);
       return m;
-    });
+    };
+    return client ? execute(client) : this.db.transaction(execute);
   }
   async reverse(
     actor: string,
