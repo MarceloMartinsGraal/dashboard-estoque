@@ -5,7 +5,7 @@
 **Goal:** dashboard preparado para integração futura, sem GLPI real.
 **Architecture:** controller versionado com Bearer revogável por instância; serviços de catálogo e estoque compartilhados. Vínculos e resultados idempotentes no PostgreSQL, na transação da operação.
 **Tech Stack:** NestJS/TypeScript/pg/Zod existentes; nenhuma dependência nova.
-**Spec:** requisitos do usuário de 22/10/2026, reproduzidos no contrato docs/integration-v1.md.
+**Spec:** requisitos do usuário de 22/10/2026, reproduzidos no contrato docs/integracoes/integration-v1.md.
 
 ## Global Constraints
 - Desabilitado por padrão; sem credenciais reais, chamadas externas, plugin, webhook, commit, deploy ou migração em produção.

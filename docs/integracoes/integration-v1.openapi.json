@@ -3,7 +3,7 @@
   "info": {
     "title": "Dashboard Graal — Integração v1",
     "version": "1.0.0",
-    "description": "Dashboard preparado para integração. Sem plugin ou chamadas GLPI. Desabilitado por padrão. Instância determinada pela credencial; permissões GLPI devem ser verificadas pelo futuro servidor do plugin. Ver integration-v1.md para erros e exemplos."
+    "description": "Dashboard preparado para integração. Sem plugin ou chamadas GLPI. Desabilitado por padrão. Instância determinada pela credencial; permissões GLPI devem ser verificadas pelo futuro servidor do plugin. Ver integration-v1.md para erros e exemplos. O catálogo/estoque é compartilhado; referências de chamados e resultados idempotentes são isolados por instância."
   },
   "servers": [
     {
@@ -33,7 +33,7 @@
             }
           },
           "401": {
-            "description": "Credencial ausente/inválida/revogada/expirada",
+            "description": "Credencial ausente/inválida/revogada/expirada; revalidação transacional pode detectar perda de permissão",
             "content": {
               "application/json": {
                 "schema": {
@@ -44,26 +44,6 @@
           },
           "403": {
             "description": "Escopo insuficiente ou vínculo/funcionário inativo",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Recurso não encontrado na instância",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Saldo insuficiente, abertura pendente, referência inválida ou conflito de idempotência",
             "content": {
               "application/json": {
                 "schema": {
@@ -136,7 +116,8 @@
               "default": ""
             }
           }
-        ]
+        ],
+        "description": "Catálogo único compartilhado entre instâncias autorizadas, inclusive produtos sem saldo. A instância isola apenas vínculos externos e resultados idempotentes."
       },
       "post": {
         "summary": "Cadastrar explicitamente; sem gerar saldo",
@@ -158,7 +139,7 @@
             }
           },
           "401": {
-            "description": "Credencial ausente/inválida/revogada/expirada",
+            "description": "Credencial ausente/inválida/revogada/expirada; revalidação transacional pode detectar perda de permissão",
             "content": {
               "application/json": {
                 "schema": {
@@ -169,16 +150,6 @@
           },
           "403": {
             "description": "Escopo insuficiente ou vínculo/funcionário inativo",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Recurso não encontrado na instância",
             "content": {
               "application/json": {
                 "schema": {
@@ -272,7 +243,7 @@
             }
           },
           "401": {
-            "description": "Credencial ausente/inválida/revogada/expirada",
+            "description": "Credencial ausente/inválida/revogada/expirada; revalidação transacional pode detectar perda de permissão",
             "content": {
               "application/json": {
                 "schema": {
@@ -292,17 +263,7 @@
             }
           },
           "404": {
-            "description": "Recurso não encontrado na instância",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Saldo insuficiente, abertura pendente, referência inválida ou conflito de idempotência",
+            "description": "Produto inexistente no catálogo compartilhado",
             "content": {
               "application/json": {
                 "schema": {
@@ -376,7 +337,7 @@
             }
           },
           "401": {
-            "description": "Credencial ausente/inválida/revogada/expirada",
+            "description": "Credencial ausente/inválida/revogada/expirada; revalidação transacional pode detectar perda de permissão",
             "content": {
               "application/json": {
                 "schema": {
@@ -387,26 +348,6 @@
           },
           "403": {
             "description": "Escopo insuficiente ou vínculo/funcionário inativo",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Recurso não encontrado na instância",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Saldo insuficiente, abertura pendente, referência inválida ou conflito de idempotência",
             "content": {
               "application/json": {
                 "schema": {
@@ -505,7 +446,7 @@
             }
           },
           "401": {
-            "description": "Credencial ausente/inválida/revogada/expirada",
+            "description": "Credencial ausente/inválida/revogada/expirada; revalidação transacional pode detectar perda de permissão",
             "content": {
               "application/json": {
                 "schema": {
@@ -525,17 +466,7 @@
             }
           },
           "404": {
-            "description": "Recurso não encontrado na instância",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Saldo insuficiente, abertura pendente, referência inválida ou conflito de idempotência",
+            "description": "Produto inexistente no catálogo compartilhado",
             "content": {
               "application/json": {
                 "schema": {
@@ -644,7 +575,7 @@
             }
           },
           "401": {
-            "description": "Credencial ausente/inválida/revogada/expirada",
+            "description": "Credencial ausente/inválida/revogada/expirada; revalidação transacional pode detectar perda de permissão",
             "content": {
               "application/json": {
                 "schema": {
@@ -664,7 +595,7 @@
             }
           },
           "404": {
-            "description": "Recurso não encontrado na instância",
+            "description": "Produto inexistente no catálogo compartilhado",
             "content": {
               "application/json": {
                 "schema": {
@@ -758,7 +689,7 @@
             }
           },
           "401": {
-            "description": "Credencial ausente/inválida/revogada/expirada",
+            "description": "Credencial ausente/inválida/revogada/expirada; revalidação transacional pode detectar perda de permissão",
             "content": {
               "application/json": {
                 "schema": {
@@ -778,17 +709,7 @@
             }
           },
           "404": {
-            "description": "Recurso não encontrado na instância",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Saldo insuficiente, abertura pendente, referência inválida ou conflito de idempotência",
+            "description": "Operação inexistente na instância autenticada",
             "content": {
               "application/json": {
                 "schema": {
@@ -862,7 +783,7 @@
             }
           },
           "401": {
-            "description": "Credencial ausente/inválida/revogada/expirada",
+            "description": "Credencial ausente/inválida/revogada/expirada; revalidação transacional pode detectar perda de permissão",
             "content": {
               "application/json": {
                 "schema": {
@@ -873,26 +794,6 @@
           },
           "403": {
             "description": "Escopo insuficiente ou vínculo/funcionário inativo",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Recurso não encontrado na instância",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Saldo insuficiente, abertura pendente, referência inválida ou conflito de idempotência",
             "content": {
               "application/json": {
                 "schema": {
@@ -979,7 +880,8 @@
               ]
             }
           }
-        ]
+        ],
+        "description": "Sem flow retorna todas as direções vinculadas. Chamado sem movimentos retorna 200 com items vazio e total 0. ticketId de consulta aceita até 200 caracteres; escrita de movimento aceita até 100."
       }
     }
   },
@@ -1233,7 +1135,8 @@
           },
           "eventDate": {
             "type": "string",
-            "format": "date"
+            "format": "date",
+            "description": "Data real, não futura e não anterior à abertura operacional do produto."
           },
           "locationId": {
             "type": "string",

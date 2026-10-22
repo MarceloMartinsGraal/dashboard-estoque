@@ -169,8 +169,21 @@ Disponível: busca de produtos sem caixa/acentos e por identificação (inclusiv
 
 Migração nova: `backend/migrations/005_integration_v1.sql`, aditiva, sem dados/credenciais. Validada somente em PostgreSQL local isolado; revisar o destino antes de aplicar localmente. Não foi aplicada em produção. Lançamento, ledger, autoria, referência e resultado idempotente são gravados na mesma transação. Mesma chave/conteúdo retorna o original; conteúdo diferente conflita; chaves distintas podem representar operações intencionais iguais.
 
-Contrato/procedimento: [docs/integration-v1.md](docs/integration-v1.md). OpenAPI estático: [docs/integration-v1.openapi.json](docs/integration-v1.openapi.json), sem instalar Swagger. Plano e decisões: [docs/integration-plan.md](docs/integration-plan.md).
+Contrato/procedimento: [guia da API e exemplos](docs/integracoes/integration-v1.md). OpenAPI estático: [contrato OpenAPI](docs/integracoes/integration-v1.openapi.json), sem instalar Swagger. Plano e decisões: [plano e decisões](docs/integracoes/integration-plan.md).
 
-Para testes, defina `TEST_DATABASE_URL` de banco descartável loopback cujo nome termine em `_test`. Execute `npm test` (fixtures sintéticas, sem GLPI). Após `npm run build:backend`, `node scripts/simulate-integration.cjs` demonstra cadastro, busca, abertura de fixture, entrada, saída, replay, saldo e resultado; gera somente credencial efêmera de teste, não imprime segredo e revoga ao finalizar. Nunca aponte para banco operacional. Preparar o dashboard não comprova que a integração esteja funcionando no GLPI: plugin, permissões do chamado, provisionamento real e homologação ficam para outra etapa.
+### Testar a API localmente
+
+Com Node/dependências instalados e PostgreSQL local em execução, use um **banco descartável vazio**, cujo nome termine em `_test`. A URL precisa apontar para `localhost`, `127.0.0.1` ou `[::1]`. Na raiz, em PowerShell:
+
+```powershell
+$env:TEST_DATABASE_URL = Read-Host 'URL do PostgreSQL local descartável (banco terminado em _test)'
+npm test
+# Depois de a suíte passar:
+node scripts/simulate-integration.cjs
+```
+
+`npm test` compila e roda a suíte, incluindo a integração. O simulador inicia sua própria API local, cria dados e credencial efêmera de teste e a revoga ao finalizar. Esperado: `simulatedOnly: true`, saldo `1.000` e histórico com `2` movimentos. Ambos aplicam migrações no banco indicado; as fixtures permanecem nele. Use outro banco vazio para repetir a suíte. Não é necessário iniciar a API operacional, alterar `.env` ou ativar credenciais reais. Não use a base operacional.
+
+O [guia completo](docs/integracoes/integration-v1.md#teste-rápido-em-powershell) explica como executar somente os testes da integração. Plugin, permissões do chamado, provisionamento real e homologação ficam para a etapa no GLPI.
 
 Verificação desta preparação: **57 testes aprovados** em PostgreSQL 18.4 temporário loopback, typecheck e build aprovados, contrato JSON e referências conferidos, demonstração HTTP local concluída com saldo 1 após entrada 2/saída 1 e replay sem duplicação. Revisão independente estática sem achados relevantes. Migração 005 executada somente em bancos temporários de testes; nenhum acesso ao GLPI ou credencial real.

@@ -16,6 +16,8 @@ Formato: `Authorization: Bearer <uuid-do-cliente>.<segredo-hex-64>`. Os placehol
 
 Escopos: `read` para GET/HEAD; `products:write` para POST products; `movements:write` para POST movements. A permissão é definida na rota, não por dados do corpo. Cliente revogado (`active=false`), expirado ou segredo divergente recebe 401. Revogação/permissões/validade são reconferidas na transação de escrita, após esperar a chave, com lock compartilhado até commit. Pedidos já linearizados podem terminar antes de a revogação obter o lock; não há cancelamento retroativo.
 
+O catálogo de produtos e o estoque são únicos e compartilhados entre instâncias autorizadas. O isolamento por instância aplica-se às referências de chamados e aos resultados idempotentes, não cria catálogos separados.
+
 Cada cliente pertence a uma `instance_id` textual imutável por procedimento administrativo (ex.: `glpi-exemplo`). A instância vem exclusivamente da credencial, nunca do payload. Várias credenciais da mesma instância compartilham chaves/resultados; isso permite rotação. Clientes de uma mesma instância com `read` podem consultar o histórico/resultados dessa instância. Para isolamento adicional, crie outra instância. Não há validação de acesso por chamado dentro do GLPI nesta entrega.
 
 ## Vínculo explícito e administração futura
@@ -90,7 +92,7 @@ Saída: mesmo formato com `kind=saida`, quantidade `1`, localização com dispon
 
 Consultar após timeout: `GET /api/integration/v1/operations/glpi-000042-exit-exemplo`. Resultado `{idempotencyKey,instanceId,operation,result,created_at}`. O resultado da movimentação contém `id,productId,kind,quantity,eventDate,recordedAt,actorId,locationId,reason,observation,externalReference`. A referência inclui instanceId/ticketId/externalUserId e conserva zeros.
 
-Histórico: `GET /api/integration/v1/tickets/000042/movements?limit=20&page=1`. Sem flow retorna todas as direções vinculadas; flow entrada/saida filtra direção, incluindo a inversão de estorno. Campo `externalReference` acompanha original e estorno; `reversal_of`/`reversed_by`, autor efetivo e deltas de localização são preservados. Não filtra pelo texto livre do chamado de movimentos pessoais: exige vínculo externo estruturado.
+Histórico: `GET /api/integration/v1/tickets/000042/movements?limit=20&page=1`. Sem flow retorna todas as direções vinculadas; flow entrada/saida filtra direção, incluindo a inversão de estorno. O parâmetro de consulta `ticketId` aceita até 200 caracteres; no cadastro de movimento o limite é 100, conforme o campo de chamado operacional. Chamado sem registros vinculados retorna uma lista vazia, não 404. Campo `externalReference` acompanha original e estorno; `reversal_of`/`reversed_by`, autor efetivo e deltas de localização são preservados. Não filtra pelo texto livre do chamado de movimentos pessoais: exige vínculo externo estruturado.
 
 ## Erros
 
@@ -99,9 +101,9 @@ Envelope Nest existente: `{statusCode,message}`; mensagens portuguesas, sem stac
 | Status | Exemplos |
 |---|---|
 | 400 | Campos/quantidade/data inválidos, chave ausente/inválida, motivo que exige observação, purpose saída sem produto |
-| 401 | Bearer ausente/inválido/revogado/expirado; troca de hash durante espera |
+| 401 | Bearer ausente/inválido/revogado/expirado; alteração de hash ou perda de permissão detectada na transação após espera |
 | 403 | Escopo insuficiente; usuário sem vínculo ativo ou funcionário inativo |
-| 404 | Produto/operação não encontrados na instância; não comprova que outro sistema tenha ou não tal chamado |
+| 404 | Produto inexistente no catálogo compartilhado ou operação inexistente na instância autenticada. Chamado sem movimentos vinculados retorna 200 com lista vazia |
 | 409 | Saldo insuficiente, produto inativo/abertura pendente, chave usada com conteúdo diferente ou referência cadastral conflitante |
 | 503 | Integração desabilitada |
 | 500 | Falha interna genérica; consultar resultado antes de decidir nova operação |
@@ -112,8 +114,30 @@ Nenhuma falha de validação/saldo deixa baixa parcial ou chave reservada. Conco
 
 Aplicar 005 em produção **não foi autorizado nem executado**. Para desenvolvimento existente, revisar o destino antes de executar `npm run build` e `npm run migrate`; migrações devem ser aplicadas somente em banco local/de testes nesta etapa. Não recriar volumes. Sem 005 e com integração desabilitada as novas rotas retornam 503; habilitar exige primeiro a migração.
 
-Teste automatizado usa `TEST_DATABASE_URL` para um banco descartável com nome terminado em `_test` e host loopback; não use sua base operacional. Os testes migram e geram fixtures/credenciais efêmeras apenas nesse banco. Compile com `npm run build:backend` e rode `npm test`. `node scripts/simulate-integration.cjs` é um cliente demonstrativo que também exige essa URL de testes: sobe API em porta aleatória de loopback, cria fixtures sintéticas, faz busca/entrada/saída/repetição/consulta e revoga o cliente ao terminar. Não imprime o segredo. Não depende de GLPI ou de rede externa.
+### Teste rápido em PowerShell
+
+Pré-requisitos: Node e dependências do projeto instalados; PostgreSQL local em execução; banco **descartável vazio**, com nome terminado em `_test`. A URL deve usar `localhost`, `127.0.0.1` ou `[::1]`. Crie um banco vazio para cada execução da suíte: algumas fixtures usam identificadores fixos e não são projetadas para repetir a suíte sobre o banco já preenchido.
+
+Na raiz do repositório:
+
+```powershell
+$env:TEST_DATABASE_URL = Read-Host 'URL do PostgreSQL local descartável (banco terminado em _test)'
+npm test
+# Depois de a suíte passar:
+node scripts/simulate-integration.cjs
+```
+
+Informe a URL apenas no terminal local; não a envie ao chat nem a registre no Git. `npm test` compila o backend e executa a suíte completa, incluindo `tests/integration.test.cjs`. Para executar somente os testes da integração em outro banco descartável vazio:
+
+```powershell
+npm run build:backend
+node --test tests/integration.test.cjs
+```
+
+Os testes e o simulador aplicam as migrações automaticamente **nesse banco de testes**; não é necessário iniciar `npm start`, usar `.env`, habilitar a integração da aplicação operacional ou cadastrar credenciais manualmente. Não use sua base operacional.
+
+O simulador sobe sua própria API em porta aleatória de loopback, cria fixtures e uma credencial efêmera e a revoga ao terminar. Demonstra cadastro explícito, busca, abertura zero de fixture, entrada de 2, replay da mesma entrada, saída de 1 e consulta de resultado/histórico. A saída esperada inclui `simulatedOnly: true`, `balance: "1.000"` e `history: 2`; IDs variam. Não imprime segredo, não depende de GLPI e não chama rede externa. As fixtures permanecem no banco descartável.
 
 Para a futura implantação Docker, a opção precisa ser passada explicitamente ao processo da API (por exemplo `INTEGRATION_ENABLED=true` em override revisado); não é ativada automaticamente pelo .env do host. Manter desabilitada nesta etapa. Sem alteração de Nginx ou publicação nesta entrega.
 
-Contrato legível por máquina: `docs/integration-v1.openapi.json`, OpenAPI 3.1 estático. O projeto não usa Swagger em runtime; nenhuma biblioteca/interface Swagger foi instalada. Documentação descreve apenas endpoints do dashboard.
+Contrato legível por máquina: [OpenAPI 3.1](integration-v1.openapi.json), OpenAPI 3.1 estático. O projeto não usa Swagger em runtime; nenhuma biblioteca/interface Swagger foi instalada. Documentação descreve apenas endpoints do dashboard.
