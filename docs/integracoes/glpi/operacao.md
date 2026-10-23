@@ -64,3 +64,19 @@ Atualização a executar pelo administrador, inicialmente em homologação:
 Limpar cache sozinho não corrige pacote antigo com assets fora de public. O backend compatível do dashboard continua necessário e a homologação no GLPI real continua pendente.
 
 Referências: [roteamento estático GLPI 11.0.5](https://github.com/glpi-project/glpi/blob/11.0.5/src/Glpi/Http/RequestRouterTrait.php), [hooks e prefixo de URL](https://github.com/glpi-project/glpi/blob/11.0.5/src/Html.php), [CLI oficial para cache](https://help.glpi-project.org/documentation/cli).
+
+## Atualização 0.1.3 — falha interna em toda ação da aba
+
+Sintoma na 0.1.2: qualquer busca na aba retornava "Falha interna do plugin" e HTTP 500 em `ajax/endpoint.php`. Causa: o GLPI 11 inclui scripts legados dentro de `LegacyFileLoadController::__invoke` (escopo de função), e o endpoint usava `$DB` sem `global`; o armazenamento de intenções recebia `null` antes de qualquer chamada ao dashboard. Correção: `global $DB;` no endpoint. Teste de regressão: `tests/endpoint.php` carrega o endpoint em escopo de função, como o GLPI 11. Sem mudança de schema, configuração ou contrato da API; atualizar como as versões anteriores, sem desinstalar.
+
+## Atualização por script
+
+`scripts/update-glpi-plugin.sh` executa no servidor GLPI os passos acima sem desinstalar: confere SHA-256 (quando o `.sha256` acompanha o ZIP) e a estrutura do pacote, desativa, move a pasta anterior para `/var/backups/glpi-plugins/` (fora dos diretórios de descoberta), instala a nova com o dono de `files/`, limpa o cache, recarrega Apache/PHP-FPM, executa `plugin:install` (hook idempotente; registra a nova versão) e `plugin:activate`. Recusa pacote inválido antes de alterar a instalação; se a cópia falhar, restaura a pasta anterior. Ao final mostra o estado e os comandos para voltar à versão anterior. Configuração, credencial, direitos e intenções ficam no banco GLPI e não são alterados.
+
+Do PC administrativo, na raiz do repositório (empacota, envia por `scp` e executa por `ssh`, pedindo a senha do sudo):
+
+```powershell
+.\scripts\deploy-glpi-plugin.ps1 -Servidor usuario@IP_DO_GLPI
+```
+
+Ou, com o ZIP e o `.sha256` já em `/tmp` do servidor: `sudo bash update-glpi-plugin.sh /tmp/estoquegraal-X.Y.Z.zip [/var/www/glpi]`. Se o estado final não for ativo, conclua em Configurar → Plugins (Atualizar, se aparecer, e Ativar), nunca Desinstalar. Validado em contêiner Ubuntu 24.04 com GLPI simulado (troca, backup, checksum e pacote inválido); a execução em GLPI real permanece pendente de homologação.
