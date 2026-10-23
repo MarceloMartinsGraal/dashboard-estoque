@@ -1,6 +1,8 @@
 <?php
 require_once dirname(__DIR__,3).'/inc/includes.php';
 require_once dirname(__DIR__).'/lib/bootstrap.php';
+// GLPI 11 inclui scripts legados dentro de um método: globais precisam ser declaradas.
+global $DB;
 header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store');
 $requestId=bin2hex(random_bytes(16));$csrf='';$action='invalid';
 try {

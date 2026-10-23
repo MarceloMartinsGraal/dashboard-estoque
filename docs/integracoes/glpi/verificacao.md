@@ -26,6 +26,7 @@ Requer PHP 8.2+ e Node.js somente como ferramentas de desenvolvimento; nenhuma d
 
 ```sh
 php glpi-plugin/estoquegraal/tests/run.php
+php glpi-plugin/estoquegraal/tests/endpoint.php
 node --test glpi-plugin/estoquegraal/tests/ui.test.cjs
 node --check glpi-plugin/estoquegraal/public/js/app.js
 node scripts/test-glpi-plugin.cjs
