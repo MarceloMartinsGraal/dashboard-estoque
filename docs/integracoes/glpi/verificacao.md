@@ -27,7 +27,7 @@ Requer PHP 8.2+ e Node.js somente como ferramentas de desenvolvimento; nenhuma d
 ```sh
 php glpi-plugin/estoquegraal/tests/run.php
 node --test glpi-plugin/estoquegraal/tests/ui.test.cjs
-node --check glpi-plugin/estoquegraal/js/app.js
+node --check glpi-plugin/estoquegraal/public/js/app.js
 node scripts/test-glpi-plugin.cjs
 # Opcional: Edge local; EDGE_BINARY permite indicar o navegador
 node scripts/test-glpi-plugin-browser.cjs
@@ -71,3 +71,24 @@ Documentação centralizada em `docs/integracoes/glpi/`, mantendo código em `gl
 Empacotamento: `python scripts/package-glpi-plugin.py`, a partir de qualquer diretório. Lê a versão do setup.php e grava ZIP/checksum em `dist/`, já ignorada por regra existente. O ZIP inclui a pasta raiz `estoquegraal/` e cópias dos guias centralizados, ajustando os links do README para o contexto do pacote.
 
 Nesta organização foram conferidos links locais, integridade/estrutura/conteúdo e repetibilidade do ZIP, regra de exclusão Git, preservação do código operacional e ausência de indicadores de segredos/dados pessoais nos artefatos destinados ao versionamento. Isso é uma inspeção limitada dos arquivos organizados, não auditoria de segurança completa. As evidências funcionais anteriores acima são históricas: a suíte funcional não foi reexecutada nesta tarefa, pois nenhuma funcionalidade mudou. Backend compatível e homologação GLPI continuam necessários.
+
+### Correção de assets 0.1.2 (23/10/2026)
+
+Investigação por endereço:
+
+| Arquivo | Origem da URL anterior | Defeito confirmado localmente / correção |
+| --- | --- | --- |
+| core.js | hook add_javascript, caminho js/core.js | ZIP0.1.1 tinha js/core.js; roteador procura public/js/core.js; movido sem mudar URL |
+| app.js | mesmo hook, caminho js/app.js | Mesma incompatibilidade física, public/js/app.js; carregado após core |
+| plugin.css | hook add_css, caminho css/plugin.css | Arquivo em css/ não era público no roteador11; movido para public/css/ |
+| logo.svg | View a partir de Plugin::getWebDir | Além de arquivo fora de public, dependia de helper depreciado que pode emitir marketplace; agora Html::getPrefixedUrl com rota canônica plugins e arquivo public/pics/ |
+
+O ZIP0.1.1 foi inspecionado: os quatro arquivos existiam, com pasta raiz correta estoquegraal/, porém sem public/. Não houve evidência de arquivo ausente do ZIP. Não foram fornecidas URLs do ambiente instalado e não foi acessado servidor; logo, particularidades de proxy/rewrite, cache ou instalação incompleta nesse ambiente não foram comprovadas.
+
+Fontes oficiais tag11.0.5: RequestRouterTrait::getTargetFile expõe assets de public/ e mantém exceção para scripts legados PHP em ajax/front; Html registra JS do hook em /plugins/{plugin}/{file} e aplica root_doc; Plugin::getWebDir está depreciado. Hooks relativos mantidos; não adicionar public ou prefixo GLPI ao registro dos hooks.
+
+Teste PHP de regressão falhou antes da correção por core.js fora de public. Após a correção, passou com hooks e renderização real da classe de aba usando substitutos do core, em raiz/subdiretório e independentemente de caminho marketplace. No navegador Edge isolado: os quatro assets servidos HTTP200, logo decodificada, estilo aplicado, aba inserida depois dos scripts via MutationObserver e aba reaberta sem recarregar scripts, busca por input/debounce e botão disparando requisições e exibindo resultado sintético. Executado com prefixos vazio e /glpi. Endpoint GLPI é simulado; nenhum backend/GLPI existente foi chamado. Isso verifica o fluxo JS local, não comprova a busca no ambiente instalado.
+
+Testes disponíveis: `php glpi-plugin/estoquegraal/tests/assets.php`, testes PHP existentes (11 grupos), Node (2 testes), cliente cURL loopback, sintaxe PHP/JS, navegador isolado raiz/subdiretório. Não reexecutada suíte PostgreSQL pois backend, autenticação, permissões, contratos e regras de estoque não foram alterados. O empacotador agora recusa gerar ZIP se faltar um dos quatro assets públicos.
+
+Homologação pendente: servidor web GLPI11.0.5 real, cache/OPcache/proxy e rota efetiva, sessão/CSRF e comunicação com dashboard. Siga atualização no guia e confirme requisições no Network. Não declarar busca instalada resolvida apenas pelo ZIP.

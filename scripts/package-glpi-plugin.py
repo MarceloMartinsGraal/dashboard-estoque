@@ -10,9 +10,11 @@ if not version:
 out=base/'dist'/('estoquegraal-'+version.group(1)+'.zip')
 out.parent.mkdir(parents=True,exist_ok=True)
 files={n:(source/n).read_bytes() for n in ['setup.php','hook.php','README.md','LICENSE']}
-for folder in ['lib','inc','front','ajax','js','css','pics']:
+for folder in ['lib','inc','front','ajax','public']:
     for p in (source/folder).rglob('*'):
         if p.is_file(): files[p.relative_to(source).as_posix()]=p.read_bytes()
+for required in ['public/js/core.js','public/js/app.js','public/css/plugin.css','public/pics/logo.svg']:
+    if required not in files: raise SystemExit('Asset público ausente: '+required)
 for name in ['operacao.md','verificacao.md','fontes.json']:
     files['docs/'+name]=(docs/name).read_bytes()
 # No ZIP os guias ficam junto do plugin; no repositório a documentação é centralizada.

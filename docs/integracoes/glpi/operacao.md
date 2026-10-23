@@ -46,3 +46,21 @@ Antes de desinstalar, concilie intenções pendentes e revogue manualmente a cre
 ## Atualização 0.1.1 — requisito do backend
 
 Atualize também o backend do dashboard com a correção de base zero da integração antes de usar este pacote. Não há migração ou alteração de produtos existentes. O plugin consulta o saldo após cadastrar e só habilita a entrada se `openingDate` estiver presente. Em backend antigo, continua bloqueando com mensagem de abertura pendente. Não substitua uma intenção de cadastro já concluída por novo cadastro: produtos criados antes da correção devem ser conciliados pelo fluxo existente.
+
+## Atualização 0.1.2 — assets no GLPI 11
+
+Esta versão corrige a localização física dos assets: `public/js/core.js`, `public/js/app.js`, `public/css/plugin.css`, `public/pics/logo.svg`. As URLs **não** incluem `/public`: os hooks GLPI continuam registrando `js/core.js`, `js/app.js` e `css/plugin.css`; o GLPI resolve esses caminhos dentro de public. A logo e o endpoint da aba usam a rota canônica `/plugins/estoquegraal`, prefixada por `Html::getPrefixedUrl`, compatível com instalação na raiz ou em subdiretório. Não configure IP/caminho físico no código.
+
+Atualização a executar pelo administrador, inicialmente em homologação:
+
+1. Concilie intenções em envio, faça backup dos arquivos do plugin e do banco/chave GLPI e desative o plugin. **Não desinstale**: desinstalação apaga configurações e intenções locais.
+2. Gere/obtenha `estoquegraal-0.1.2.zip`, confira o SHA-256 e extraia em diretório temporário. Confira `estoquegraal/setup.php` e `estoquegraal/public/js/app.js`. Substitua a pasta de código do plugin pela pasta estoquegraal nova no mesmo diretório de plugins utilizado antes, preservando proprietário/permissões. Não crie outra cópia em marketplace e não deixe o backup dentro dos diretórios de descoberta de plugins. Não altere core, banco ou configuração web para expor a raiz do plugin.
+3. Reative e confira versão 0.1.2 no gerenciador. Se GLPI indicar atualização, use o fluxo normal, sem desinstalar; esta versão não muda schema. Preserve configuração, credencial e direitos existentes.
+4. Na raiz da instalação GLPI, como o usuário do serviço web, limpe cache pelo comando oficial `php bin/console glpi:cache:clear`. Se o PHP mantiver código antigo por OPcache, o administrador deverá invalidar/recarregar o processo PHP conforme a operação local. Esses procedimentos não foram executados por esta entrega.
+5. Faça recarga completa da página do chamado (Ctrl+F5), não somente da aba. Isso permite carregar os hooks e renovar referências dos assets. Se houver proxy/cache HTTP, invalide apenas as URLs estáticas do plugin conforme sua política.
+6. No Network, confira HTTP200 e MIME correto para os quatro arquivos. Na raiz, as URLs serão `/plugins/estoquegraal/js/core.js`, `/plugins/estoquegraal/js/app.js`, `/plugins/estoquegraal/css/plugin.css`, `/plugins/estoquegraal/pics/logo.svg`; em `/glpi`, terão esse prefixo. JS/CSS podem incluir `?v=...` gerado pelo GLPI. A pasta física public não faz parte da URL.
+7. Abra e reabra a aba, digite uma busca e use o botão Buscar. Confirme POST no endpoint do próprio plugin, ação search e resultados retornados. Não faça movimentação real para testar assets. Se ainda houver 404, envie somente a URL da requisição do arquivo, sem cookies, tokens, cabeçalhos ou corpo; a rota/rewrite do ambiente precisa ser distinguida da estrutura do ZIP.
+
+Limpar cache sozinho não corrige pacote antigo com assets fora de public. O backend compatível do dashboard continua necessário e a homologação no GLPI real continua pendente.
+
+Referências: [roteamento estático GLPI 11.0.5](https://github.com/glpi-project/glpi/blob/11.0.5/src/Glpi/Http/RequestRouterTrait.php), [hooks e prefixo de URL](https://github.com/glpi-project/glpi/blob/11.0.5/src/Html.php), [CLI oficial para cache](https://help.glpi-project.org/documentation/cli).

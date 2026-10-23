@@ -79,5 +79,15 @@
     "path": "php-8.3.36-nts-Win32-vs16-x64.zip",
     "size": "32.52MB",
     "sha256": "3c9242622c7402b47c38d2ec2ed779cef3a290fd6f2bde6c35f9c482699e7900"
-  }
+  },
+  "asset_fix_sources": [
+    {
+      "url": "https://raw.githubusercontent.com/glpi-project/glpi/11.0.5/src/Html.php",
+      "sha256": "4f1f5655052ce2ad2a144343644c9d34cb348c2d37f84c4a07cdc0a5e2a0c840"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/glpi-project/glpi/11.0.5/src/Glpi/Http/RequestRouterTrait.php",
+      "sha256": "61872eb1d3ed0d4ebab9a5799b8f8247f25b6a2ee2183028bf52146fcaabcacc"
+    }
+  ]
 }
