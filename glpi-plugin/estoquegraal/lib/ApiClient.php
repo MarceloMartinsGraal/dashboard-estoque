@@ -9,7 +9,7 @@ final class ApiClient {
         return $this->request('POST',$path,[],$body,$key);
     }
     private function request(string $method,string $path,array $query=[],?array $body=null,?string $key=null):array {
-        if(!preg_match('~^/(products(?:/[a-f0-9-]{36}/(?:balances|locations))?|locations|movements|operations/[A-Za-z0-9._:-]{1,120}|tickets/[0-9]+/movements)$~D',$path))throw new PluginError('Endpoint não permitido.');
+        if(!preg_match('~^/(products(?:/[a-f0-9-]{36}/(?:balances|locations))?|product-matches|locations|movements|operations/[A-Za-z0-9._:-]{1,120}|tickets/[0-9]+/movements)$~D',$path))throw new PluginError('Endpoint não permitido.');
         $url=$this->settings->baseUrl.$path.($query?'?'.http_build_query($query,'','&',PHP_QUERY_RFC3986):'');
         $headers=['Accept: application/json',$this->settings->authorization()];
         if($key!==null)$headers[]='Idempotency-Key: '.$key;
@@ -18,7 +18,7 @@ final class ApiClient {
         catch(PluginError $e){throw $e;}
         catch(\Throwable){throw new PluginError('Dashboard indisponível. Consulte o resultado antes de repetir.',504,$method==='POST');}
         if($status<200||$status>=300) {
-            $messages=[400=>'Dados rejeitados. Confira quantidade, motivo e abertura do produto.',401=>'Credencial inválida ou expirada. Solicite revisão ao administrador.',403=>'Sem permissão ou vínculo ativo com funcionário no dashboard. Solicite regularização ao administrador.',404=>'Registro não encontrado.',409=>'Saldo insuficiente, abertura pendente, produto inativo ou conflito de idempotência. Confira no dashboard.',503=>'Integração desabilitada ou dashboard indisponível.'];
+            $messages=[400=>'Dados rejeitados. Confira quantidade, motivo e abertura do produto.',401=>'Credencial inválida ou expirada. Solicite revisão ao administrador.',403=>'Sem permissão ou vínculo ativo com funcionário no dashboard. Solicite regularização ao administrador.',404=>'Registro não encontrado.',409=>'Conflito: revise possíveis duplicatas, abertura, saldo, produto ativo ou chave. Para cadastro semelhante, revise candidatos e confirme produto diferente com justificativa.',503=>'Integração desabilitada ou dashboard indisponível.'];
             throw new PluginError($messages[$status]??'Falha ao consultar o dashboard.',in_array($status,[400,401,403,404,409,503],true)?$status:502,$method==='POST'&&$status>=500);
         }
         try{$decoded=json_decode($raw,true,512,JSON_THROW_ON_ERROR);}catch(\Throwable){throw new PluginError('Resposta inválida do dashboard.',502,$method==='POST');}

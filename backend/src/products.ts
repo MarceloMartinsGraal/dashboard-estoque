@@ -9,11 +9,13 @@ import { z } from 'zod';
 import { Database, audit } from './db';
 import { formatQuantity } from './quantity';
 import { pageFields, text, uuid, validate } from './validation';
+import { compareProducts } from './product-matches';
 import { foldSql, foldText } from './search';
 
 export const productSchema = z
   .object({
     id: uuid.optional(),
+    duplicateConfirmation: z.object({candidateIds:z.array(uuid).min(1).max(10000),justification:z.string().trim().min(5).max(500)}).strict().optional(),
     description: text,
     categoryId: uuid.nullable().default(null),
     subcategoryId: uuid.nullable().default(null),
@@ -70,12 +72,34 @@ export class ProductService {
       limit: q.limit,
     };
   }
+  private async candidateRows(description: string, client: Pick<PoolClient,'query'> = this.db.pool) {
+    const rows=(await client.query(`SELECT p.id,p.description,p.unit,p.active,p.opening_date::text AS opening_date,p.legacy_id AS "legacyId",c.name AS category,s.name AS subcategory,
+      (SELECT COALESCE(SUM(l.delta),0)::text FROM movements m JOIN ledger l ON l.movement_id=m.id WHERE m.product_id=p.id) AS quantity
+      FROM products p LEFT JOIN categories c ON c.id=p.category_id LEFT JOIN subcategories s ON s.id=p.subcategory_id ORDER BY p.id`)).rows;
+    return rows.map(p=>({...p,quantity:formatQuantity(BigInt(p.quantity)),...compareProducts(description,p.description)})).filter(p=>p.similar)
+      .sort((a,b)=>Number(b.exact)-Number(a.exact)||b.score-a.score||a.id.localeCompare(b.id));
+  }
+  async matches(query: unknown) {
+    const q=validate(z.object({description:text,...pageFields}).strict(),query);
+    const all=await this.candidateRows(q.description);
+    return {items:all.slice((q.page-1)*q.limit,q.page*q.limit),total:all.length,page:q.page,limit:q.limit,candidateIds:all.map(p=>p.id).sort()};
+  }
   async save(actor: string, body: unknown, client?: PoolClient, initializeEmpty = false) {
     const d = validate(productSchema, body);
     if (d.subcategoryId && !d.categoryId)
       throw new BadRequestException('Subcategoria exige categoria');
     const execute = async (c: PoolClient) => {
       let before = null;
+      if (!d.id) {
+        // Serializa criações normais para que duas confirmações não ignorem um cadastro recém-criado.
+        await c.query("SELECT pg_advisory_xact_lock(736261,1)");
+        const matches=await this.candidateRows(d.description,c);
+        if(matches.length){
+          const ids=matches.map(p=>p.id).sort();
+          const confirmed=[...new Set(d.duplicateConfirmation?.candidateIds??[])].sort();
+          if(JSON.stringify(ids)!==JSON.stringify(confirmed))throw new ConflictException({message:'Possíveis duplicatas encontradas ou lista alterada. Revise os candidatos e justifique se for produto diferente.',code:'PRODUCT_CANDIDATES',candidateIds:ids});
+        }
+      }
       if (d.id) {
         before = (
           await c.query('SELECT * FROM products WHERE id=$1 FOR UPDATE', [d.id])
@@ -144,6 +168,7 @@ export class ProductService {
           );
         }
       }
+      if (!d.id && d.duplicateConfirmation) await audit(c,actor,'confirmar_produto_distinto','produto',p.id,d.duplicateConfirmation);
       await audit(c, actor, d.id ? 'editar' : 'criar', 'produto', p.id, {
         before,
         after: d,

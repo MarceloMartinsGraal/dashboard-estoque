@@ -80,3 +80,15 @@ Do PC administrativo, na raiz do repositório (empacota, envia por `scp` e execu
 ```
 
 Ou, com o ZIP e o `.sha256` já em `/tmp` do servidor: `sudo bash update-glpi-plugin.sh /tmp/estoquegraal-X.Y.Z.zip [/var/www/glpi]`. Se o estado final não for ativo, conclua em Configurar → Plugins (Atualizar, se aparecer, e Ativar), nunca Desinstalar. Validado em contêiner Ubuntu 24.04 com GLPI simulado (troca, backup, checksum e pacote inválido); a execução em GLPI real permanece pendente de homologação.
+
+## Atualização 0.1.4 — seleção e possíveis duplicatas
+
+Atualize **também o backend e o frontend do dashboard**, a partir desta revisão. Backend inclui leitura product-matches e revalidação de candidatos no serviço compartilhado; frontend inclui a revisão no cadastro. Não há migração, importação ou alteração de dados existentes. Recompile/republique a aplicação pelo procedimento habitual de homologação; nenhum servidor foi atualizado por esta entrega.
+
+Para GLPI, substitua a pasta inteira estoquegraal pela do ZIP0.1.4, desativando/reativando sem desinstalar, conforme procedimento de cache da seção0.1.2. Mantenha configuração, direitos e intenções. O pacote contém todos os arquivos; não atualize apenas app.js. Arquivos de runtime alterados nesta versão: setup.php, public/js/app.js, lib/View.php, lib/ApiClient.php, lib/Operations.php, ajax/endpoint.php. Código do dashboard: backend/src/product-matches.ts, products.ts, catalog.ts, integration.ts e frontend/src/product-matches.ts, main.ts. Não copiar TypeScript diretamente para o processo em produção: gerar build como habitual. Nenhuma alteração em credenciais ou escopos existentes além dos read/products:write já necessários.
+
+O botão Selecionar e ver armários revela o painel, dá foco ao título e rola até ele. Saldo zero sugere entrada; saída permanece sem disponibilidade. Loading, falha de comunicação, armários vazios e abertura pendente são mensagens distintas. Legacy sem abertura permanece bloqueado. Dados de entrada incluem armários ativos sem saldo/associação; saída continua somente com disponibilidade.
+
+Ao digitar descrição para cadastrar, revise todos os candidatos paginados, inclusive inativos e sem saldo. Use produto existente para selecioná-lo; produto inativo exige revisão no dashboard, sem reativação automática. Se realmente for diferente, marque a confirmação e escreva justificativa de negócio (5..500), sem dados pessoais ou segredos. Não é fusão automática. A revisão é repetida antes da preparação e no backend antes de gravar. Lista alterada exige nova revisão. Em caso de falha/404 nessa consulta, confira se o backend compatível está atualizado; não prosseguir presumindo catálogo vazio.
+
+Cadastro novo continua com base zero sem quantidade; primeira entrada é outra operação confirmada. Intenções antigas não são reescritas: se cadastro antigo for rejeitado por novos candidatos, revise e prepare uma nova intenção de cadastro; se estiver desconhecido, consulte antes e concilie, sem criar operação substituta.

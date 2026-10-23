@@ -277,6 +277,7 @@ export class IntegrationService {
       return this.products.save(actor, product, c, true);
     });
   }
+  async matches(query: unknown) { return this.products.matches(query); }
   async search(query: unknown) {
     const q = validate(
       z.object({ ...pageFields, q: z.string().max(200).default('') }).strict(),
@@ -407,6 +408,9 @@ export class IntegrationService {
 @UseGuards(IntegrationGuard)
 export class IntegrationController {
   constructor(private readonly service: IntegrationService) {}
+  @SetMetadata('integration:scope', 'read')
+  @Get('product-matches')
+  productMatches(@Query() q: unknown) {return this.service.matches(q);}
   @SetMetadata('integration:scope', 'read')
   @Get('products')
   products(@Query() q: unknown) {

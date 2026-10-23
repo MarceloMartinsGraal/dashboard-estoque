@@ -92,5 +92,13 @@ $tests['configuração pública omite ciphertext e plaintext; segredo somente no
  $public=PluginEstoquegraalConfig::values();expect(!array_key_exists('token',$public));expect($public['token_set']===true);expect(!str_contains(json_encode($public),'synthetic'));
  expect(PluginEstoquegraalConfig::values(true)['token']==='synthetic-plaintext');
 };
+$tests['confirmação de produto distinto conserva candidatos/justificativa na intenção e no replay']=function()use($config,$ctx,$pid){
+ $store=new MemoryStore();$posts=0;$seen=null;$api=new ApiClient(new Settings($config),function($m,$u,$h,$body)use(&$posts,&$seen,$pid){$posts++;$seen=json_decode($body,true);return [201,json_encode(['id'=>$pid])];});
+ $service=new \EstoqueGraal\Operations($api,new Settings($config),$store);
+ $confirmation=['candidateIds'=>[$pid],'justification'=>'Modelo distinto conferido'];
+ $intent=$service->prepare($ctx,'product',['description'=>'Memória sintética','duplicateConfirmation'=>$confirmation]);
+ expect($service->execute($ctx,$intent['key'])['state']==='done');$service->execute($ctx,$intent['key']);expect($posts===1);expect($seen['duplicateConfirmation']===$confirmation);
+ rejects(fn()=>$service->prepare($ctx,'product',['description'=>'x','duplicateConfirmation'=>['candidateIds'=>['bad'],'justification'=>'Motivo válido']]),400);
+};
 $failed=0;foreach($tests as$name=>$test){try{$test();echo 'OK '.$name.PHP_EOL;}catch(Throwable$e){$failed++;echo 'FAIL '.$name.': '.$e->getMessage().PHP_EOL;}}
 exit($failed?1:0);

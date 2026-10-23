@@ -884,6 +884,111 @@
         ],
         "description": "Sem flow retorna todas as direções vinculadas. Chamado sem movimentos retorna 200 com items vazio e total 0. ticketId de consulta aceita até 200 caracteres; escrita de movimento aceita até 100."
       }
+    },
+    "/product-matches": {
+      "get": {
+        "summary": "Revisar possíveis duplicatas antes de cadastrar",
+        "security": [
+          {
+            "IntegrationBearer": []
+          }
+        ],
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "description",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Dados/chave inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Credencial ausente/inválida/revogada/expirada; revalidação transacional pode detectar perda de permissão",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente ou vínculo/funcionário inativo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Integração desabilitada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Falha interna genérica",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Candidatos paginados após consulta a todo o catálogo, incluindo sem saldo/inativos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductMatches"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1088,6 +1193,9 @@
             ],
             "format": "uuid",
             "default": null
+          },
+          "duplicateConfirmation": {
+            "$ref": "#/components/schemas/DuplicateConfirmation"
           }
         }
       },
@@ -1471,6 +1579,134 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 100
+          }
+        }
+      },
+      "DuplicateConfirmation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "candidateIds",
+          "justification"
+        ],
+        "properties": {
+          "candidateIds": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 10000,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "justification": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 500
+          }
+        }
+      },
+      "ProductCandidate": {
+        "type": "object",
+        "required": [
+          "id",
+          "description",
+          "unit",
+          "active",
+          "quantity",
+          "exact",
+          "technicalDifferences"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "quantity": {
+            "type": "string"
+          },
+          "opening_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "legacyId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "subcategory": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "similar": {
+            "type": "boolean"
+          },
+          "score": {
+            "type": "number"
+          },
+          "exact": {
+            "type": "boolean",
+            "description": "Igualdade de tokens normalizados; não comprova modelo idêntico"
+          },
+          "technicalDifferences": {
+            "type": "boolean",
+            "description": "Divergência de números e termos técnicos reconhecidos; heuristicamente, sem garantia de equivalência"
+          }
+        }
+      },
+      "ProductMatches": {
+        "type": "object",
+        "required": [
+          "items",
+          "candidateIds",
+          "total",
+          "page",
+          "limit"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductCandidate"
+            }
+          },
+          "candidateIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "IDs de todos os candidatos, não somente da página"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
           }
         }
       }

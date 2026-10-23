@@ -4,6 +4,7 @@ let writes=0,redirects=0,recorded=false;const token='11111111-1111-4111-8111-111
 const server=http.createServer(async(req,res)=>{try{const u=new URL(req.url,'http://127.0.0.1');if(req.headers.authorization!=='Bearer '+token)throw Error('Authorization ausente');let raw='';for await(const chunk of req)raw+=chunk;const b=raw?JSON.parse(raw):{};res.setHeader('Content-Type','application/json');const send=(s,v)=>{res.statusCode=s;res.end(JSON.stringify(v));};
 if(u.pathname==='/redirected'){redirects++;return send(500,{});}
 if(u.searchParams.has('status')){const s=Number(u.searchParams.get('status'));if(s===302)res.setHeader('Location','/redirected');return send(s,{message:'<script>remote</script>'});}
+if(req.method==='GET'&&u.pathname.endsWith('/product-matches'))return send(200,{items:[],candidateIds:[],page:1,limit:20,total:0});
 if(req.method==='GET'&&u.pathname.endsWith('/products')){if(u.searchParams.get('q')!=='memória'||u.searchParams.get('page')!=='2')throw Error('Paginação/busca incorreta');return send(200,{items:[],page:2,limit:20,total:21});}
 if(req.method==='POST'){if(!req.headers['idempotency-key'])throw Error('Chave ausente');writes++;if(b.test==='opening')return send(409,{});if(b.test==='timeout'){recorded=true;return setTimeout(()=>send(201,{id:'synthetic-recorded'}),1400);}return send(201,{id:'11111111-1111-4111-8111-111111111111',kind:b.kind});}
 if(u.pathname.endsWith('/operations/http.timeout')&&recorded)return send(200,{result:{id:'synthetic-recorded'}});send(404,{});

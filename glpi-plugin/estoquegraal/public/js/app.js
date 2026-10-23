@@ -11,6 +11,7 @@
     const q = s => root.querySelector(s);
     const feedback=q('[data-eg-feedback]'), movement=q('[data-eg-movement]'), create=q('[data-eg-create]');
     const searchVersion=new C.Latest(), selectionVersion=new C.Latest(), locationVersion=new C.Latest(), historyVersion=new C.Latest(), intentVersion=new C.Latest();
+    const matchVersion=new C.Latest();let matchTimer,matchData=null,matchDescription='';
     let timer, page=1, historyPage=1, locationPage=1, product=null, intent=null, preparing=false, writing=false;
     const canMove=root.dataset.move==='1', canCreate=root.dataset.create==='1';
     function say(text,error=false) { feedback.textContent=text; feedback.setAttribute('role',error?'alert':'status'); }
@@ -43,21 +44,36 @@
       if(!b.locations.length)list.append(el('li','Sem quantidade atribuída a armários.'));
       q('[data-eg-distribution]').replaceChildren(list);
     }
+    function movementEnabled() {
+      q('[data-eg-review]').disabled=!canMove||!product?.active||!product?.openingDate||(movement.elements.kind.value==='saida'&&!C.positive(product.quantity));
+    }
     async function selectProduct(p) {
-      const version=selectionVersion.invalidate();q('[data-eg-review]').disabled=true;movement.elements.locationId.replaceChildren(new Option('Selecione explicitamente um armário',''));product=p;q('[data-eg-selected]').hidden=false;q('[data-eg-product-name]').textContent=p.description||'Descrição pendente';q('[data-eg-product-info]').textContent='Carregando saldo…';
-      const b=await call('balances',{productId:p.id});if(!selectionVersion.current(version))return;
-      product={...p,quantity:b.total,openingDate:b.openingDate,active:b.active};displayBalances(b);
-      q('[data-eg-product-info]').textContent=`Saldo: ${C.quantity(b.total)} ${b.unit}. ${b.openingDate?'Base operacional inicializada.':'Abertura pendente: aprove-a no dashboard antes de registrar uma entrada ou saída.'}`;
-      q('[data-eg-review]').disabled=!canMove||!b.active||!b.openingDate;
-      await locations(true);
+      const version=selectionVersion.invalidate();locationVersion.invalidate();
+      product=null;q('[data-eg-review]').disabled=true;
+      movement.elements.locationId.replaceChildren(new Option('Carregando armários…',''));
+      const selected=q('[data-eg-selected]');selected.hidden=false;selected.setAttribute('aria-busy','true');
+      const heading=q('[data-eg-product-name]');heading.textContent=p.description||'Descrição pendente';heading.tabIndex=-1;heading.focus();selected.scrollIntoView({block:'start',behavior:'smooth'});
+      q('[data-eg-product-info]').textContent='Carregando saldo e armários…';q('[data-eg-distribution]').replaceChildren();q('[data-eg-location-status]').textContent='';
+      try {
+        const b=await call('balances',{productId:p.id});if(!selectionVersion.current(version))return;
+        product={...p,quantity:b.total,openingDate:b.openingDate,active:b.active};displayBalances(b);
+        movement.elements.kind.value=C.positive(b.total)?'saida':'entrada';
+        q('[data-eg-product-info]').textContent=`Saldo: ${C.quantity(b.total)} ${b.unit}. ${!b.active?'Produto inativo: não pode ser movimentado. ':''}${b.openingDate?'Base operacional inicializada.':'Abertura pendente: concilie no dashboard antes de movimentar. Nenhuma abertura legada será criada aqui.'}`;
+        await locations(true);
+      }catch(e){if(selectionVersion.current(version)){q('[data-eg-product-info]').textContent='Não foi possível carregar os detalhes. '+e.message;movement.elements.locationId.replaceChildren(new Option('Consulta indisponível',''));say(e.message,true);}}
+      finally {if(selectionVersion.current(version)){selected.setAttribute('aria-busy','false');}}
     }
     async function locations(reset) {
       if(!product)return;const generation=locationVersion.invalidate(), id=product.id, purpose=movement.elements.kind.value;
+      q('[data-eg-review]').disabled=true;const status=q('[data-eg-location-status]');status.textContent='Carregando armários…';
       if(reset){locationPage=1;movement.elements.locationId.replaceChildren(new Option('Selecione explicitamente um armário',''));}
-      const r=await call('locations',{productId:id,purpose,page:locationPage});if(!locationVersion.current(generation)||product?.id!==id||movement.elements.kind.value!==purpose)return;
-      for(const l of r.items)movement.elements.locationId.append(new Option(`${l.code==='NAO_INFORMADA'?'Localização não informada':l.code+' · '+l.name} — ${C.quantity(l.quantity)} unidade`,l.id));
-      q('[data-eg-more-locations]').hidden=locationPage*r.limit>=r.total;
-      if(reset&&!r.items.length)say(purpose==='saida'?'Nenhum armário ativo com saldo disponível para este produto.':'Nenhum armário ativo disponível.',true);
+      try {
+        const r=await call('locations',{productId:id,purpose,page:locationPage});if(!locationVersion.current(generation)||product?.id!==id||movement.elements.kind.value!==purpose)return;
+        for(const l of r.items)movement.elements.locationId.append(new Option(`${l.code==='NAO_INFORMADA'?'Localização não informada':l.code+' · '+l.name} — ${C.quantity(l.quantity)} unidade`,l.id));
+        q('[data-eg-more-locations]').hidden=locationPage*r.limit>=r.total;
+        status.textContent=!r.total?(purpose==='saida'?'Sem localização ativa com disponibilidade para saída.':'Nenhum armário ativo elegível para entrada.'):'Armários carregados. Selecione um explicitamente.';
+        movementEnabled();
+      }catch(e){if(locationVersion.current(generation)){status.textContent='Falha ao consultar armários. '+e.message;say(e.message,true);}throw e;}
     }
     function summary(i) {
       if(i.operation==='product')return `Cadastrar produto “${i.summary.description}”, ativo, em unidades. Sem quantidade inicial. Contexto: chamado ${root.dataset.ticket}.`;
@@ -126,7 +142,26 @@
     movement.elements.kind.addEventListener('change',safe(()=>locations(true)));q('[data-eg-more-locations]').addEventListener('click',safe(()=>{locationPage++;return locations(false);}));
     movement.addEventListener('submit',safe(e=>{e.preventDefault();if(!product||!canMove||!movement.reportValidity())return;const data=Object.fromEntries(new FormData(movement));data.quantity=C.inputQuantity(data.quantity);return prepare('movement',{...data,productId:product.id});}));
     q('[data-eg-create-toggle]').addEventListener('click',()=>{create.hidden=false;create.elements.description.focus();});q('[data-eg-create-cancel]').addEventListener('click',()=>{create.hidden=true;});
-    create.addEventListener('submit',safe(e=>{e.preventDefault();if(canCreate&&create.reportValidity())return prepare('product',{description:create.elements.description.value});}));
+    async function matches(page=1) {
+      const generation=matchVersion.invalidate(), description=create.elements.description.value.trim();
+      const area=q('[data-eg-matches]');area.textContent='Consultando possíveis duplicatas em todo o catálogo…';
+      try {
+        const r=await call('matches',{description,page});if(!matchVersion.current(generation)||description!==create.elements.description.value.trim())return null;
+        if(!Array.isArray(r.items)||!Array.isArray(r.candidateIds))throw new Error('Resposta de candidatos indisponível. Atualize o backend compatível.');
+        if(matchDescription!==description||JSON.stringify(matchData?.candidateIds)!==JSON.stringify(r.candidateIds)){q('[data-eg-distinct]').checked=false;q('[data-eg-distinct-reason]').value='';}
+        matchData=r;matchDescription=description;area.replaceChildren(el('p',r.total?`${r.total} possíveis correspondências (inclui inativos e sem saldo).`:'Nenhuma correspondência encontrada nesta consulta.'));
+        for(const p of r.items){const row=el('article');row.append(el('strong',p.description),el('p',`ID: ${p.id} · ${p.unit} · ${p.active?'Ativo':'Inativo — solicite revisão no dashboard; não será reativado'} · saldo ${C.quantity(p.quantity)} · ${p.category||'Sem categoria'} / ${p.subcategory||'Sem subcategoria'}${p.technicalDifferences?' · Atenção: especificações diferentes no texto':''}`));const use=el('button','Usar produto existente');use.type='button';use.addEventListener('click',safe(()=>{create.hidden=true;return selectProduct(p);}));row.append(use);area.append(row);}
+        for(const [label,target,disabled] of [['Anterior',page-1,page<=1],['Próxima',page+1,page*r.limit>=r.total]]){const b=el('button',label);b.type='button';b.disabled=disabled;b.addEventListener('click',safe(()=>matches(target)));area.append(b);}
+        return r;
+      }catch(e){if(matchVersion.current(generation)){matchData=null;area.textContent='Falha ao consultar possíveis duplicatas. '+e.message;}throw e;}
+    }
+    create.elements.description.addEventListener('input',()=>{clearTimeout(matchTimer);matchVersion.invalidate();matchData=null;matchDescription='';q('[data-eg-distinct]').checked=false;if(create.elements.description.value.trim())matchTimer=setTimeout(safe(()=>matches()),300);});
+    create.addEventListener('submit',safe(async e=>{
+      e.preventDefault();if(!canCreate||!create.reportValidity())return;
+      clearTimeout(matchTimer);const r=await matches();if(!r)throw new Error('Descrição alterada. Revise os candidatos novamente.');const payload={description:create.elements.description.value.trim()};
+      if(r.total){const justification=q('[data-eg-distinct-reason]').value.trim();if(!q('[data-eg-distinct]').checked||justification.length<5)throw new Error('Revise os candidatos. Para cadastrar outro produto, confirme É um produto diferente e justifique (5 a 500 caracteres).');payload.duplicateConfirmation={candidateIds:r.candidateIds,justification};}
+      return prepare('product',payload);
+    }));
     q('[data-eg-ack]').addEventListener('change',updateIntentButtons);q('[data-eg-confirm-button]').addEventListener('click',safe(()=>send()));q('[data-eg-retry]').addEventListener('click',safe(()=>send(true)));q('[data-eg-recover]').addEventListener('click',safe(recover));
     q('[data-eg-cancel]').addEventListener('click',()=>{if(!writing&&(!intent||!['unknown','sending'].includes(intent.state))){intentVersion.invalidate();intent=null;q('[data-eg-confirm]').hidden=true;}});
     q('[data-eg-load-intents]').addEventListener('click',safe(intents));q('[data-eg-history-refresh]').addEventListener('click',safe(history));

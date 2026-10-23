@@ -1,5 +1,6 @@
 import './style.css';
 import { api } from './api';
+import { productMatchReview } from './product-matches';
 import { quantity, positive, eventDay, label, locationSummary } from './format';
 import {
   historyFilterKeys,
@@ -447,12 +448,14 @@ function productFields(p: Row = {}): Field[] {
   ];
 }
 function editProduct(p: Row = {}) {
-  formDialog(
+  let review:(()=>Promise<unknown>)|undefined;
+  const popup=formDialog(
     p.id ? 'Editar produto' : 'Cadastrar produto',
     productFields(p),
     async (d) => {
       await api('products', {
         ...(p.id ? { id: p.id } : {}),
+        ...(review?{duplicateConfirmation:await review()}:{}),
         description: d.description,
         categoryId: d.categoryId || null,
         subcategoryId: d.subcategoryId || null,
@@ -464,6 +467,7 @@ function editProduct(p: Row = {}) {
       ? 'A descrição original e o ID legado serão preservados.'
       : undefined,
   );
+  if(!p.id)review=productMatchReview(popup,async candidate=>{await balances(candidate);});
 }
 async function products() {
   const revision = ++productsVersion;

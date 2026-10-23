@@ -539,3 +539,28 @@ test('produto novo da integração inicia vazio; primeira entrada separada é id
  assert.equal((await post('/movements','legacy-remains-pending',movement({productId:old.rows[0].id,eventDate:bal.body.openingDate}))).status,409);
  assert.equal((await db.pool.query('SELECT opening_date FROM products WHERE id=$1',[old.rows[0].id])).rows[0].opening_date,null);
 });
+
+test('possíveis duplicatas: catálogo inteiro, inativos/zero, confirmação auditada, replay e concorrência',async()=>{
+ const {ProductService}=require('../dist/backend/products');
+ await db.pool.query("INSERT INTO products(description,unit,active) SELECT 'Memória RAM Kingston DDR4 8 GB modelo '||n,'unidade',false FROM generate_series(1,25)n");
+ const q='Memória Kingston 8GB DDR4';const r=await get('/product-matches?'+new URLSearchParams({description:q,page:'2',limit:'20'}));
+ assert.equal(r.status,200);assert.equal(r.body.total,25);assert.equal(r.body.items.length,5);assert.ok(r.body.items.every(p=>!p.active&&p.quantity==='0.000'));assert.equal(r.body.candidateIds.length,25);
+ const body={description:q,active:true,externalUserId:'0007'};
+ assert.equal((await post('/products','duplicate-unreviewed',body)).status,409);
+ const confirmed={...body,duplicateConfirmation:{candidateIds:r.body.candidateIds,justification:'Modelo novo com part number diferente, conferido pelo operador'}};
+ const saved=await post('/products','duplicate-reviewed',confirmed);assert.equal(saved.status,201);
+ assert.equal((await post('/products','duplicate-reviewed',confirmed)).body.id,saved.body.id);
+ assert.equal((await post('/products','duplicate-stale',confirmed)).status,409);
+ assert.equal((await db.pool.query("SELECT id FROM audit_log WHERE action='confirmar_produto_distinto' AND entity_id=$1",[saved.body.id])).rowCount,1);
+ const service=new ProductService(db);
+ await assert.rejects(()=>service.save(actor,{description:'memoria kingston DDR4 8 GB',active:true}),/Possíveis duplicatas/);
+ const different=await get('/product-matches?'+new URLSearchParams({description:'Memória Kingston DDR3 16GB',page:'1',limit:'20'}));
+ assert.ok(different.body.items.some(p=>p.technicalDifferences));
+ const concurrent={description:'Adaptador Aurora sintético 77X exclusivo',active:true,externalUserId:'0007'};
+ const both=await Promise.all([post('/products','dup-race-a',concurrent),post('/products','dup-race-b',concurrent)]);
+ assert.deepEqual(both.map(r=>r.status).sort(),[201,409]);
+ assert.equal((await post('/products','forged-identity',{...body,id:saved.body.id})).status,400);
+ await assert.rejects(()=>db.pool.query("INSERT INTO products(description,unit,source,legacy_id) SELECT description,unit,source,legacy_id FROM products WHERE legacy_id=98765"),e=>e.code==='23505');
+ const broken=new ProductService({pool:{query:async()=>{throw new Error('synthetic unavailable')}}});
+ await assert.rejects(()=>broken.matches({description:q}),/synthetic unavailable/);
+});

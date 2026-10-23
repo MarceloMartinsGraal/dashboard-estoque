@@ -207,3 +207,5 @@ Código-fonte: [glpi-plugin/estoquegraal/](glpi-plugin/estoquegraal/). Documenta
 Na raiz do repositório, execute `python scripts/package-glpi-plugin.py`. O ZIP e seu SHA-256 são gerados em `dist/` (ignorada pelo Git), com a pasta raiz `estoquegraal/`. A versão é lida do código atual; não extraia pacotes antigos sobre o código-fonte.
 
 O plugin exige backend compatível do dashboard (base zero para novos cadastros da integração). Desenvolvido para posterior instalação e homologação no GLPI 11.0.5; funcionamento completo no GLPI ainda precisa ser homologado.
+
+Plugin0.1.4: seleção de produtos com feedback visível e revisão de possíveis duplicatas no cadastro, compartilhada com o dashboard. Requer atualizar backend e frontend do dashboard junto do plugin; sem migração. Consulte [atualização e arquivos alterados](docs/integracoes/glpi/operacao.md#atualização-014--seleção-e-possíveis-duplicatas) e [contrato aditivo de candidatos](docs/integracoes/integration-v1.md#revisão-de-possíveis-duplicatas-plugin-014).

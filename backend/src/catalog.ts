@@ -45,6 +45,9 @@ export class CatalogController {
       locations: locations.rows,
     };
   }
+  @Get('product-matches') async productMatches(@Query() query: unknown) {
+    return this.productsService.matches(query);
+  }
   @Get('products') async products(@Query() query: unknown) {
     return this.productsService.search(query);
   }

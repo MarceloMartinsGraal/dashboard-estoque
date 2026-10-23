@@ -10,10 +10,11 @@ try {
     // O listener oficial11.0.5 valida esse header em AJAX e preserva o token. Validar novamente antes de qualquer acesso externo.
     if(($_SERVER['HTTP_X_REQUESTED_WITH']??'')!=='XMLHttpRequest'||!Session::validateCSRF(['_glpi_csrf_token'=>$_SERVER['HTTP_X_GLPI_CSRF_TOKEN']??''],true))throw new \EstoqueGraal\PluginError('Sessão ou proteção CSRF expirou. Recarregue a aba.',403);
     $action=$_POST['action']??'';
-    if(!is_string($action)||!in_array($action,['search','balances','locations','history','prepare','execute','recover','intent','intents'],true))throw new \EstoqueGraal\PluginError('Ação inválida.');
-    if(!is_string($_POST['data']??null)||strlen($_POST['data'])>16000)throw new \EstoqueGraal\PluginError('Dados inválidos.');
+    if(!is_string($action)||!in_array($action,['search','matches','balances','locations','history','prepare','execute','recover','intent','intents'],true))throw new \EstoqueGraal\PluginError('Ação inválida.');
+    if(!is_string($_POST['data']??null)||strlen($_POST['data'])>($action==='prepare'?512000:16000))throw new \EstoqueGraal\PluginError('Dados inválidos.');
     $data=json_decode($_POST['data'],true,64,JSON_THROW_ON_ERROR);if(!is_array($data))throw new \EstoqueGraal\PluginError('Dados inválidos.');
     if($action==='search'&&(!is_string($data['q']??'')||mb_strlen($data['q']??'', 'UTF-8')>200))throw new \EstoqueGraal\PluginError('Busca inválida (máximo 200 caracteres).');
+    if($action==='matches'&&(!is_string($data['description']??null)||trim($data['description'])===''||mb_strlen($data['description'],'UTF-8')>2000))throw new \EstoqueGraal\PluginError('Descrição inválida.');
     $ctx=\EstoqueGraal\Gate::context($_POST['ticketId']??null);
     $settings=PluginEstoquegraalConfig::settings();$client=new \EstoqueGraal\ApiClient($settings);$store=new \EstoqueGraal\GlpiIntentStore($DB);$operations=new \EstoqueGraal\Operations($client,$settings,$store);
     $page=filter_var($data['page']??1,FILTER_VALIDATE_INT);if(!$page||$page<1||$page>100000)throw new \EstoqueGraal\PluginError('Página inválida.');
@@ -30,6 +31,7 @@ try {
     // Persistir CSRF/sessão e liberar lock de sessão antes da rede. Nenhuma transação GLPI é aberta.
     if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
     $out=match($action){
+        'matches'=>$client->get('/product-matches',['description'=>$data['description'],'page'=>$page,'limit'=>20]),
         'search'=>$client->get('/products',['q'=>($data['q']??''),'page'=>$page,'limit'=>20]),
         'balances'=>$client->get('/products/'.$data['productId'].'/balances'),
         'locations'=>$client->get('/products/'.$data['productId'].'/locations',['purpose'=>($data['purpose']??'saida')==='entrada'?'entrada':'saida','page'=>$page,'limit'=>50]),
@@ -44,6 +46,6 @@ try {
     echo json_encode(['ok'=>true,'data'=>$out,'csrf'=>$csrf],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);
 }catch(Throwable$e){
     $status=$e instanceof \EstoqueGraal\PluginError?$e->status:500;http_response_code($status);
-    Toolbox::logInFile('estoquegraal',json_encode(['requestId'=>$requestId,'action'=>in_array($action,['search','balances','locations','history','prepare','execute','recover','intent','intents'],true)?$action:'invalid','status'=>$status])."\n");
+    Toolbox::logInFile('estoquegraal',json_encode(['requestId'=>$requestId,'action'=>in_array($action,['search','matches','balances','locations','history','prepare','execute','recover','intent','intents'],true)?$action:'invalid','status'=>$status])."\n");
     echo json_encode(['ok'=>false,'status'=>$status,'message'=>$e instanceof \EstoqueGraal\PluginError?$e->getMessage():'Falha interna do plugin. Consulte o administrador.','requestId'=>$requestId,'csrf'=>$csrf],JSON_UNESCAPED_UNICODE);
 }
