@@ -119,3 +119,28 @@ Teste PHP tests/endpoint.php e --failure: endpoint carregado em escopo de funç�
 Origem do (-3): backend/src/history.ts inclui ledger.delta por movimento e formatQuantity o devolve em locations[].delta. A UI antiga acrescentava esse valor entre parênteses após código/nome. Agora mostra variação: -3. O teste usa code15/name memoria/delta -3.000 e confere a identificação; não conclui saldo atual negativo.
 
 Pendente: fornecer ação/status/requestId do erro instalado e linha de log sanitizada correlacionada; homologar kernel/CSRF/rede/proxy reais sem repetir movimentações. Não acessados servidores e nenhum movimento real criado.
+
+### Ação intents — 0.1.6
+
+Rastreio: JS intents() faz POST no endpoint PHP com action intents, sem identidade humana fornecida pelo navegador; Gate::context resolve sessão/chamado/entidade; configuração fornece instância; GlpiIntentStore::recent usa esses quatro filtros e projeta somente key/state/operation; endpoint serializa a lista; JS mostra resultado ou erro local. Sem escrita/movimentação externa nesse fluxo.
+
+Evidência antes da correção: tests/intents.php executado com DBmysql.php/DBmysqlIterator.php oficiais tag11.0.5 gerou ``ORDER BY `DESC` LIMIT 20`` e falhou na asserção de ordenação; depois da correção gerou ``ORDER BY `id` DESC LIMIT 20`` e passou. Construtor oficial executado sem conexão; funções Safe/DBConnection mínimas substituídas só para esse teste de geração. Não foi executada consulta em MySQL/MariaDB ou GLPI real.
+
+Testes adicionados: lista vazia, registros e todos os quatro estados, limite/ordem, isolamento por usuário/chamado/entidade/instância, exclusão de done e falhas por exceção/retorno false. Endpoint real carregado em escopo de função com contexto sintético: sucesso vazio, registro serializado, outro usuário, outro chamado, falha500, retorno não iterável500 e JSON inválido500, todos com requestId/log sanitizado. JavaScript real em navegador com endpoint sintético: mensagem exata Nenhuma operação pendente, registro desconhecido, falha que não se transforma em vazio e recuperação sem novo movimento. Regressões de timeout/idempotência existentes preservadas e executadas.
+
+Comandos locais:
+
+```sh
+php glpi-plugin/estoquegraal/tests/intents.php
+php glpi-plugin/estoquegraal/tests/endpoint.php
+php glpi-plugin/estoquegraal/tests/endpoint.php --existing
+php glpi-plugin/estoquegraal/tests/endpoint.php --existing --other-user
+php glpi-plugin/estoquegraal/tests/endpoint.php --existing --other-ticket
+php glpi-plugin/estoquegraal/tests/endpoint.php --failure
+php glpi-plugin/estoquegraal/tests/endpoint.php --false
+php glpi-plugin/estoquegraal/tests/endpoint.php --invalid-json
+```
+
+Opcionalmente tests/intents.php recebe dois caminhos de cópias locais oficiais de src/DBmysql.php e src/DBmysqlIterator.php tag11.0.5 para executar o construtor original. Essas fontes de pesquisa ficam fora do pacote e não inicializam instalação GLPI.
+
+Revisão independente estática não encontrou defeitos adicionais no ajuste; confirmou preservação dos filtros/schema/idempotência. O HTTP500 do requestId informado permanece sem correlação com logs instalados, indisponíveis ao usuário neste momento. Não foi presumida necessidade de migração nem executado comando em servidor/banco real. Homologação GLPI e conferência dos metadados instalados continuam pendentes.

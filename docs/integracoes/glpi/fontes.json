@@ -89,5 +89,15 @@
       "url": "https://raw.githubusercontent.com/glpi-project/glpi/11.0.5/src/Glpi/Http/RequestRouterTrait.php",
       "sha256": "61872eb1d3ed0d4ebab9a5799b8f8247f25b6a2ee2183028bf52146fcaabcacc"
     }
+  ],
+  "intents_fix_sources": [
+    {
+      "url": "https://raw.githubusercontent.com/glpi-project/glpi/11.0.5/src/DBmysql.php",
+      "sha256": "72405ac7a3f83b91d298669b7df22172b3d14f5fe677260198378084bc78a47f"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/glpi-project/glpi/11.0.5/src/DBmysqlIterator.php",
+      "sha256": "60130138ae53e87087b8b492397f840c47a8cdf2bb87bcace504aa5f474a6a40"
+    }
   ]
 }

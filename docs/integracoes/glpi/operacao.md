@@ -110,3 +110,26 @@ Não foi acessado o GLPI instalado e não há comprovação de qual requisição
 3. Um administrador autorizado procura o mesmo requestId no log do plugin gerado por Toolbox::logInFile('estoquegraal', ...) no diretório de logs configurado no GLPI. O novo registro informa action, status, phase, exceptionType, site relativo ao plugin (ou core-or-extension) e line. Compartilhe somente esses campos sanitizados. Mensagem bruta de exceção, SQL, stack completo, dados do chamado e caminhos absolutos não são registrados nesse diagnóstico. Se uma investigação adicional exigir logs gerais, o administrador deve sanitizá-los antes.
 4. Erro de status renderização local significa que a resposta chegou, mas seu tratamento na interface falhou; não é apresentado como HTTP500 do servidor. Falha de rede tem status0. JSON/HTML inválido mantém status HTTP observado e requestId do header, quando disponível.
 5. A partir da linha correlacionada será possível investigar a exceção real do ambiente. Não atribua o500 a cache/mensagem antiga sem verificar. Atualização das leituras foi corrigida localmente; a origem do500 instalado permanece pendente dessas evidências.
+
+## Atualização 0.1.6 — consulta de operações pendentes
+
+Atualização **somente do plugin**, sem novo backend ou migração. Substitua a pasta estoquegraal inteira pela do ZIP0.1.6, sem desinstalar e seguindo backup/cache/recarga completa já descritos. Arquivos de runtime alterados: `setup.php`, `lib/GlpiIntentStore.php` e `public/js/app.js`. Não apague tabela, intenções ou chaves idempotentes para corrigir este erro.
+
+Defeito comprovado localmente com o construtor SQL oficial GLPI11.0.5: o formato `ORDERBY => ['id' => 'DESC']` era interpretado como uma lista contendo DESC e gerava ordenação pela coluna `DESC`, inexistente no schema do plugin. O formato corrigido é `ORDERBY => ['id DESC']`. Isso corrige a consulta sem alterar schema, isolamento ou estados de idempotência. O teste anterior aceitava qualquer array de consulta em um substituto do banco e não reproduzia o construtor SQL; a regressão agora cobre o formato real.
+
+A ação intents usa o usuário da sessão, o ID real do chamado e sua entidade validados pelo GLPI, e a instância configurada. Consulta somente a tabela local glpi_plugin_estoquegraal_intents, filtrando prepared/sending/unknown/rejected, ordenando por id decrescente e limitando20. Não chama POST /movements nem consulta o catálogo externo. Sem registros, o servidor retorna sucesso/data:[] e a tela mostra **Nenhuma operação pendente**. Retorno inválido do banco, exceção ou serialização inválida continua sendo erro500 com diagnóstico; não vira lista vazia.
+
+### Compatibilidade e evidência ainda pendente
+
+Não houve acesso autorizado ao servidor/logs nem à estrutura instalada. A exceção do requestId `9bd63b545eae7c15f346457b8b43ea27` ainda não foi correlacionada; ação/status/requestId sozinhos não comprovam seu tipo. O usuário informou que não tem acesso ao log agora. Não é preciso esse acesso para aplicar e testar a correção local; se o erro persistir após atualização, correlacione o novo diagnóstico como descrito na seção0.1.5.
+
+O schema esperado segue exatamente o hook de instalação existente: id (PK auto incremento), intent_key (único), users_id, tickets_id, entities_id, instance_id, operation, payload, state, result e date_creation. Não foi introduzida coluna ou índice, e o hook de instalação não foi alterado. Quando houver administrador autorizado, ele pode comparar **somente metadados** no ambiente de homologação:
+
+```sql
+SHOW COLUMNS FROM glpi_plugin_estoquegraal_intents;
+SHOW INDEX FROM glpi_plugin_estoquegraal_intents;
+```
+
+Esses comandos não foram executados nesta entrega. Se faltar tabela/coluna/índice, guarde diagnóstico/backup e investigue histórico da instalação antes de propor migração. Não reinstale/desinstale para reconstruir automaticamente a tabela: isso pode perder intenções necessárias para recuperação. Não há script de alteração de schema para esta versão.
+
+Após atualizar, recarregue a página completa e consulte a lista: registros existentes devem aparecer somente no seu contexto; lista realmente vazia deve mostrar Nenhuma operação pendente. Uma falha real deve manter o diagnóstico visível. Não repita movimentações para validar a lista.
