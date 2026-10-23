@@ -150,7 +150,7 @@
       return read('intents','[data-eg-intents-status]','[data-eg-intents]',{},r=>{
       const list=el('ul');
       for(const i of r){const li=el('li',`${i.operation==='product'?'Cadastro':'Movimentação'} · ${labels[i.state]||i.state} `),b=el('button','Retomar intenção');b.type='button';b.addEventListener('click',safe(()=>resumeIntent(i),'[data-eg-intent-status]'));li.append(b);list.append(li);}
-      q('[data-eg-intents]').replaceChildren(r.length?list:el('p','Nenhuma operação pendente'));
+      q('[data-eg-intents]').replaceChildren(r.length?list:el('p','Nenhuma operação pendente.'));
       },intents);
     }
     async function history() {

@@ -1,0 +1,93 @@
+{
+  "glpi_tag": "11.0.5",
+  "tutorial": "https://glpi-developer-documentation.readthedocs.io/en/latest/plugins/tutorial.html",
+  "sources": [
+    {
+      "url": "https://raw.githubusercontent.com/glpi-project/glpi/11.0.5/composer.json",
+      "sha256": "afcac34dd13118240307c8a809184bf765617797061eba22db6b23e6cbbb4f80"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/glpi-project/glpi/11.0.5/front/config.form.php",
+      "sha256": "40387c9b313117b0de9ccd79880d19037934d607a8b61a09385b91c0fc0f771d"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/glpi-project/glpi/11.0.5/inc/includes.php",
+      "sha256": "3d4daa88ffa41c774352986a64f5fc8957d49be20986cfcfd7bcba5a43766d2e"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/glpi-project/glpi/11.0.5/src/CommonDBTM.php",
+      "sha256": "eab899a70e9fa8b1c6eba8264309b575e4f981859cfc60634b451fba86d03f00"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/glpi-project/glpi/11.0.5/src/CommonGLPI.php",
+      "sha256": "b22f2522a25f0f951dc2818c4d8f7e43548de9fa15eb23cf61579f1713f3646f"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/glpi-project/glpi/11.0.5/src/Config.php",
+      "sha256": "331614ac8e45adcac85a76162aad55532d5e1897e8c03ea2d38b840ac3d3cfe4"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/glpi-project/glpi/11.0.5/src/DBmysql.php",
+      "sha256": "72405ac7a3f83b91d298669b7df22172b3d14f5fe677260198378084bc78a47f"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/glpi-project/glpi/11.0.5/src/Glpi/Controller/AbstractController.php",
+      "sha256": "364aae3374223bca54a6ee42b92ebdbe379cfa61a09fd46248ac2e392b44553e"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/glpi-project/glpi/11.0.5/src/Glpi/Http/Firewall.php",
+      "sha256": "6b0e86ef124cbbe3430cce3abb1192270d58cf5a73a0c7ef90d4ea7bece86570"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/glpi-project/glpi/11.0.5/src/Glpi/Http/SessionManager.php",
+      "sha256": "5082dccd551582f91c7ab3e87b039ec6bb9cfa30e6f8adb5f8317d86bf3430a8"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/glpi-project/glpi/11.0.5/src/Glpi/Plugin/Hooks.php",
+      "sha256": "6fd95d1875a834ee02ad4a82b5d795f0f11fad9055bfebeda0a87ce4f8a55806"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/glpi-project/glpi/11.0.5/src/GLPIKey.php",
+      "sha256": "2e9bdf23b92af9899161b55c8492742c449e3bb4c38566c0995b378d935476ac"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/glpi-project/glpi/11.0.5/src/Plugin.php",
+      "sha256": "941ad38c05e0675e6850e89e3be8864bad8e36882229ebe1b0a78e0d1e958ab2"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/glpi-project/glpi/11.0.5/src/Profile.php",
+      "sha256": "aa3efaa4adffb0cd0b90441203779747df113295dcaa0985c30ccf61fea14a86"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/glpi-project/glpi/11.0.5/src/ProfileRight.php",
+      "sha256": "d300d44856d78de282378e287b39938e374b161d9d2ab6d28dc32a4e1d5c69f0"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/glpi-project/glpi/11.0.5/src/Session.php",
+      "sha256": "57e6ff9d5186635875cf3fb48a8a603ca24c313363e25348ef8ac224d23807c9"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/glpi-project/glpi/11.0.5/src/Ticket.php",
+      "sha256": "385d9fa0fe4dc112b8174efa1b33a500ef09d3d1df9cc84fd012d6f54c27326a"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/glpi-project/glpi/11.0.5/src/Glpi/Kernel/Listener/ControllerListener/CheckCsrfListener.php",
+      "sha256": "286dd203828520cd6f1acb6cb6c6d4c2b720f4129ace6fd2fc2ed3bf9ac81106"
+    }
+  ],
+  "php_test_runtime": {
+    "path": "php-8.3.36-nts-Win32-vs16-x64.zip",
+    "size": "32.52MB",
+    "sha256": "3c9242622c7402b47c38d2ec2ed779cef3a290fd6f2bde6c35f9c482699e7900"
+  },
+  "asset_fix_sources": [
+    {
+      "url": "https://raw.githubusercontent.com/glpi-project/glpi/11.0.5/src/Html.php",
+      "sha256": "4f1f5655052ce2ad2a144343644c9d34cb348c2d37f84c4a07cdc0a5e2a0c840"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/glpi-project/glpi/11.0.5/src/Glpi/Http/RequestRouterTrait.php",
+      "sha256": "61872eb1d3ed0d4ebab9a5799b8f8247f25b6a2ee2183028bf52146fcaabcacc"
+    }
+  ]
+}

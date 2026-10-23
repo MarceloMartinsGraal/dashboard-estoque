@@ -14,10 +14,7 @@ final class GlpiIntentStore implements IntentStore {
     }
     public function recent(array $ctx,string $instance):array {
         $out=[];
-        // GLPI espera expressões na lista ORDERBY: um mapa id=>DESC ordena pela coluna DESC.
-        $rows=$this->db->request(['FROM'=>self::TABLE,'WHERE'=>['users_id'=>(int)$ctx['user'],'tickets_id'=>(int)$ctx['ticket'],'entities_id'=>(int)$ctx['entity'],'instance_id'=>$instance,'state'=>['prepared','sending','unknown','rejected']],'ORDERBY'=>['id DESC'],'LIMIT'=>20]);
-        if(!is_iterable($rows))throw new PluginError('Falha ao consultar operações pendentes. Consulte o diagnóstico do plugin.',500);
-        foreach($rows as$r)$out[]=['key'=>$r['intent_key'],'state'=>$r['state'],'operation'=>$r['operation']];
+        foreach($this->db->request(['FROM'=>self::TABLE,'WHERE'=>['users_id'=>(int)$ctx['user'],'tickets_id'=>(int)$ctx['ticket'],'entities_id'=>(int)$ctx['entity'],'instance_id'=>$instance,'state'=>['prepared','sending','unknown','rejected']],'ORDERBY'=>['id DESC'],'LIMIT'=>20])as$r)$out[]=['key'=>$r['intent_key'],'state'=>$r['state'],'operation'=>$r['operation']];
         return $out;
     }
     public function claim(string$key,array$states):bool {

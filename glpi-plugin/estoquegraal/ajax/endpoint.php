@@ -54,7 +54,10 @@ try {
     $type=(new ReflectionClass($e))->getShortName();if(!preg_match('/^[A-Za-z][A-Za-z0-9_]{0,79}$/D',$type))$type='Throwable';
     $file=str_replace('\\','/',$e->getFile());$pluginRoot=str_replace('\\','/',dirname(__DIR__)).'/';
     $site=str_starts_with($file,$pluginRoot)?substr($file,strlen($pluginRoot)):'core-or-extension';
+    // Exceção lançada no core: registrar o primeiro quadro do plugin que a originou e, para erro SQL, somente o código numérico.
+    $origin=null;if($site==='core-or-extension')foreach($e->getTrace() as $frame){$f=str_replace('\\','/',(string)($frame['file']??''));if(str_starts_with($f,$pluginRoot)){$origin=substr($f,strlen($pluginRoot)).':'.(int)($frame['line']??0);break;}}
+    $sqlErrno=preg_match('/^MySQL query error: .* \((\d{1,5})\) in SQL query/sD',$e->getMessage(),$m)?(int)$m[1]:null;
     // Sem mensagem bruta, SQL, stack, corpo, credencial ou caminhos absolutos.
-    Toolbox::logInFile('estoquegraal',json_encode(['requestId'=>$requestId,'action'=>$safeAction,'status'=>$status,'phase'=>$phase,'exceptionType'=>$type,'site'=>$site,'line'=>$e->getLine()])."\n");
+    Toolbox::logInFile('estoquegraal',json_encode(array_filter(['requestId'=>$requestId,'action'=>$safeAction,'status'=>$status,'phase'=>$phase,'exceptionType'=>$type,'site'=>$site,'line'=>$e->getLine(),'origin'=>$origin,'sqlErrno'=>$sqlErrno],fn($v)=>$v!==null))."\n");
     echo json_encode(['ok'=>false,'status'=>$status,'action'=>$safeAction,'message'=>$e instanceof \EstoqueGraal\PluginError?$e->getMessage():'Falha interna do plugin. Consulte o administrador.','requestId'=>$requestId,'csrf'=>$csrf],JSON_UNESCAPED_UNICODE);
 }
