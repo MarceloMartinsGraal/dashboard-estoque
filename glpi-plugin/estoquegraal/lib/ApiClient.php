@@ -9,7 +9,7 @@ final class ApiClient {
         return $this->request('POST',$path,[],$body,$key);
     }
     private function request(string $method,string $path,array $query=[],?array $body=null,?string $key=null):array {
-        if(!preg_match('~^/(products(?:/[a-f0-9-]{36}/(?:balances|locations))?|product-matches|locations|movements|operations/[A-Za-z0-9._:-]{1,120}|tickets/[0-9]+/movements)$~D',$path))throw new PluginError('Endpoint não permitido.');
+        if(!preg_match('~^/(products(?:/[a-f0-9-]{36}/(?:balances|locations))?|product-options|product-matches|locations|movements|operations/[A-Za-z0-9._:-]{1,120}|tickets/[0-9]+/movements)$~D',$path))throw new PluginError('Endpoint não permitido.');
         $url=$this->settings->baseUrl.$path.($query?'?'.http_build_query($query,'','&',PHP_QUERY_RFC3986):'');
         $headers=['Accept: application/json',$this->settings->authorization()];
         if($key!==null)$headers[]='Idempotency-Key: '.$key;

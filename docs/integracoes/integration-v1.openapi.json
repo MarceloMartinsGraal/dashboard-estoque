@@ -115,6 +115,35 @@
               "maxLength": 200,
               "default": ""
             }
+          },
+          {
+            "name": "availability",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "positive"
+              ],
+              "default": "all"
+            },
+            "description": "positive exige produto ativo e saldo operacional ledger>0, antes da paginação; all preserva comportamento anterior."
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "todos",
+                "ativo",
+                "inativo",
+                "abertura_pendente"
+              ],
+              "default": "todos"
+            }
           }
         ],
         "description": "Catálogo único compartilhado entre instâncias autorizadas, inclusive produtos sem saldo. A instância isola apenas vínculos externos e resultados idempotentes."
@@ -989,6 +1018,79 @@
           }
         }
       }
+    },
+    "/product-options": {
+      "get": {
+        "summary": "Opções do cadastro rápido de produto",
+        "security": [
+          {
+            "IntegrationBearer": []
+          }
+        ],
+        "x-required-scope": "read",
+        "responses": {
+          "400": {
+            "description": "Dados/chave inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Credencial ausente/inválida/revogada/expirada; revalidação transacional pode detectar perda de permissão",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente ou vínculo/funcionário inativo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Integração desabilitada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Falha interna genérica",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Categorias e subcategorias reais usadas pelo cadastro rápido; unidade implícita unidade, situação padrão ativo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductOptions"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1081,6 +1183,38 @@
               "null"
             ],
             "format": "date"
+          },
+          "locations": {
+            "type": "array",
+            "description": "Distribuição operacional positiva nos armários do produto retornado; ordenada por código/ID. Não soma legado.",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "code",
+                "name",
+                "active",
+                "quantity"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "active": {
+                  "type": "boolean"
+                },
+                "quantity": {
+                  "$ref": "#/components/schemas/Quantity"
+                }
+              }
+            }
           }
         }
       },
@@ -1707,6 +1841,66 @@
           },
           "limit": {
             "type": "integer"
+          }
+        }
+      },
+      "ProductOptions": {
+        "type": "object",
+        "required": [
+          "categories",
+          "subcategories"
+        ],
+        "properties": {
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "name",
+                "active"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "active": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "subcategories": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "name",
+                "active",
+                "category_id"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "active": {
+                  "type": "boolean"
+                },
+                "category_id": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
           }
         }
       }

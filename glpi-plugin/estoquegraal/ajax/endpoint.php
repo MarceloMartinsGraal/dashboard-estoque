@@ -10,11 +10,12 @@ try {
     // O listener oficial11.0.5 valida esse header em AJAX e preserva o token. Validar novamente antes de qualquer acesso externo.
     if(($_SERVER['HTTP_X_REQUESTED_WITH']??'')!=='XMLHttpRequest'||!Session::validateCSRF(['_glpi_csrf_token'=>$_SERVER['HTTP_X_GLPI_CSRF_TOKEN']??''],true))throw new \EstoqueGraal\PluginError('Sessão ou proteção CSRF expirou. Recarregue a aba.',403);
     $action=$_POST['action']??'';
-    if(!is_string($action)||!in_array($action,['search','matches','balances','locations','history','prepare','execute','recover','intent','intents'],true))throw new \EstoqueGraal\PluginError('Ação inválida.');
+    if(!is_string($action)||!in_array($action,['search','product_options','matches','balances','locations','history','prepare','execute','recover','intent','intents'],true))throw new \EstoqueGraal\PluginError('Ação inválida.');
     if(!is_string($_POST['data']??null)||strlen($_POST['data'])>($action==='prepare'?512000:16000))throw new \EstoqueGraal\PluginError('Dados inválidos.');
     $data=json_decode($_POST['data'],true,64,JSON_THROW_ON_ERROR);if(!is_array($data))throw new \EstoqueGraal\PluginError('Dados inválidos.');
     if($action==='search'&&(!is_string($data['q']??'')||mb_strlen($data['q']??'', 'UTF-8')>200))throw new \EstoqueGraal\PluginError('Busca inválida (máximo 200 caracteres).');
     if($action==='matches'&&(!is_string($data['description']??null)||trim($data['description'])===''||mb_strlen($data['description'],'UTF-8')>2000))throw new \EstoqueGraal\PluginError('Descrição inválida.');
+    if($action==='search'&&isset($data['includeWithoutStock'])&&!is_bool($data['includeWithoutStock']))throw new \EstoqueGraal\PluginError('Opção de busca inválida.');
     $phase='access';
     $ctx=\EstoqueGraal\Gate::context($_POST['ticketId']??null);
     $phase='configuration';
@@ -34,8 +35,9 @@ try {
     if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
     $phase='action:'.$action;
     $out=match($action){
+        'product_options'=>$client->get('/product-options'),
         'matches'=>$client->get('/product-matches',['description'=>$data['description'],'page'=>$page,'limit'=>20]),
-        'search'=>$client->get('/products',['q'=>($data['q']??''),'page'=>$page,'limit'=>20]),
+        'search'=>$client->get('/products',['q'=>($data['q']??''),'page'=>$page,'limit'=>20,'status'=>'ativo','availability'=>($data['includeWithoutStock']??false)?'all':'positive']),
         'balances'=>$client->get('/products/'.$data['productId'].'/balances'),
         'locations'=>$client->get('/products/'.$data['productId'].'/locations',['purpose'=>($data['purpose']??'saida')==='entrada'?'entrada':'saida','page'=>$page,'limit'=>50]),
         'history'=>$client->get('/tickets/'.rawurlencode($ctx['ticket']).'/movements',['page'=>$page,'limit'=>20]),
@@ -50,7 +52,7 @@ try {
     echo json_encode(['ok'=>true,'data'=>$out,'csrf'=>$csrf,'requestId'=>$requestId],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);
 }catch(Throwable$e){
     $status=$e instanceof \EstoqueGraal\PluginError?$e->status:500;http_response_code($status);
-    $safeAction=is_string($action)&&in_array($action,['search','matches','balances','locations','history','prepare','execute','recover','intent','intents'],true)?$action:'invalid';
+    $safeAction=is_string($action)&&in_array($action,['search','product_options','matches','balances','locations','history','prepare','execute','recover','intent','intents'],true)?$action:'invalid';
     $type=(new ReflectionClass($e))->getShortName();if(!preg_match('/^[A-Za-z][A-Za-z0-9_]{0,79}$/D',$type))$type='Throwable';
     $file=str_replace('\\','/',$e->getFile());$pluginRoot=str_replace('\\','/',dirname(__DIR__)).'/';
     $site=str_starts_with($file,$pluginRoot)?substr($file,strlen($pluginRoot)):'core-or-extension';

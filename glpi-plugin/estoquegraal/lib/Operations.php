@@ -3,7 +3,7 @@ namespace EstoqueGraal;
 final class Operations {
     public function __construct(private ApiClient $api,private Settings $settings,private IntentStore $store){}
     public function prepare(array $ctx,string $operation,array $input):array {
-        $allowed=$operation==='movement'?['productId','kind','quantity','locationId','eventDate','reason','observation']:($operation==='product'?['description','duplicateConfirmation']:[]);
+        $allowed=$operation==='movement'?['productId','kind','quantity','locationId','eventDate','reason','observation']:($operation==='product'?['description','categoryId','subcategoryId','active','duplicateConfirmation']:[]);
         if(!$allowed || array_diff(array_keys($input),$allowed))throw new PluginError('Campos inesperados na operação.');
         if($operation==='movement'){
             foreach(['productId','locationId']as$f)if(!is_string($input[$f]??null)||!preg_match('/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/D',$input[$f]))throw new PluginError('Produto ou localização inválidos.');
@@ -15,10 +15,14 @@ final class Operations {
             if(in_array($input['reason'],['outro','correcao_estoque'],true)&&trim($input['observation']??'')==='')throw new PluginError('Este motivo exige observação.');
             $payload=[...$input,'ticketId'=>(string)$ctx['ticket'],'externalUserId'=>(string)$ctx['user']];
         }else{
-            if(!is_string($input['description']??null)||trim($input['description'])===''||strlen($input['description'])>8000)throw new PluginError('Descrição inválida.');
+            if(!is_string($input['description']??null)||!preg_match('/^.{1,2000}$/usD',trim($input['description'])))throw new PluginError('Descrição inválida.');
             if(isset($input['duplicateConfirmation'])&&(!is_array($input['duplicateConfirmation'])||!is_array($input['duplicateConfirmation']['candidateIds']??null)||!is_string($input['duplicateConfirmation']['justification']??null)))throw new PluginError('Confirmação de produto distinto inválida.');
             if(isset($input['duplicateConfirmation'])){ $dc=$input['duplicateConfirmation'];if(count($dc['candidateIds'])>10000||strlen($dc['justification'])>2000||!preg_match('/^.{5,500}$/usD',trim($dc['justification'])))throw new PluginError('Confirmação de produto distinto inválida.');foreach($dc['candidateIds'] as $id)if(!is_string($id)||!preg_match('/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/D',$id))throw new PluginError('Candidato inválido.');}
-            $payload=['description'=>trim($input['description']),'unit'=>'unidade','active'=>true,'externalUserId'=>(string)$ctx['user']];
+            $category=$input['categoryId']??null;$sub=$input['subcategoryId']??null;$active=array_key_exists('active',$input)?$input['active']:true;
+            foreach([$category,$sub] as $id)if($id!==null&&(!is_string($id)||!preg_match('/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iD',$id)))throw new PluginError('Categoria ou subcategoria inválida.');
+            if(!is_bool($active))throw new PluginError('Situação inválida.');
+            if($sub!==null&&$category===null)throw new PluginError('Subcategoria exige categoria.');
+            $payload=['description'=>trim($input['description']),'categoryId'=>$category,'subcategoryId'=>$sub,'unit'=>'unidade','active'=>$active,'externalUserId'=>(string)$ctx['user']];
         }
         if($operation==='product'&&isset($input['duplicateConfirmation']))$payload['duplicateConfirmation']=$input['duplicateConfirmation'];
         $row=['key'=>'eg.'.bin2hex(random_bytes(16)),'user'=>(string)$ctx['user'],'ticket'=>(string)$ctx['ticket'],'entity'=>(int)$ctx['entity'],'instance'=>$this->settings->instanceId,'operation'=>$operation,'payload'=>$payload,'state'=>'prepared','result'=>null];

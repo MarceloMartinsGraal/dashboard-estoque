@@ -33,6 +33,7 @@ export class ProductService {
         .object({
           ...pageFields,
           q: z.string().max(200).default(''),
+          ...(integrationSearch?{availability:z.enum(['all','positive']).default('all')}:{}),
           categoryId: uuid.optional(),
           locationId: uuid.optional(),
           status: z
@@ -51,7 +52,9 @@ export class ProductService {
     const search = integrationSearch
       ? `($1='' OR strpos(${foldSql("p.description||' '||COALESCE(p.legacy_id::text,'')||' '||p.id::text")},$1)>0)`
       : `($1='' OR p.description ILIKE '%'||$1||'%' OR p.legacy_id::text=$1)`;
-    const where = `${search} AND ($2::uuid IS NULL OR p.category_id=$2) AND ($3::uuid IS NULL OR EXISTS(SELECT 1 FROM ledger l JOIN movements m ON m.id=l.movement_id WHERE m.product_id=p.id AND l.location_id=$3)) AND ($4='todos' OR ($4='ativo' AND p.active) OR ($4='inativo' AND NOT p.active) OR ($4='abertura_pendente' AND p.opening_date IS NULL))`;
+    const positive=integrationSearch&&'availability' in q&&q.availability==='positive';
+    const availability=positive?` AND p.active AND COALESCE((SELECT SUM(l.delta) FROM movements m JOIN ledger l ON l.movement_id=m.id WHERE m.product_id=p.id),0)>0`:'';
+    const where = `${search}${availability} AND ($2::uuid IS NULL OR p.category_id=$2) AND ($3::uuid IS NULL OR EXISTS(SELECT 1 FROM ledger l JOIN movements m ON m.id=l.movement_id WHERE m.product_id=p.id AND l.location_id=$3)) AND ($4='todos' OR ($4='ativo' AND p.active) OR ($4='inativo' AND NOT p.active) OR ($4='abertura_pendente' AND p.opening_date IS NULL))`;
     const items = await this.db.pool.query(
       `SELECT p.*,p.opening_date::text AS opening_date,c.name AS category,(SELECT COALESCE(SUM(l.delta),0)::text FROM movements m JOIN ledger l ON l.movement_id=m.id WHERE m.product_id=p.id) AS quantity,(SELECT COALESCE(jsonb_agg(s.location_id),'[]'::jsonb) FROM (SELECT l.location_id FROM movements m JOIN ledger l ON l.movement_id=m.id WHERE m.product_id=p.id GROUP BY l.location_id HAVING SUM(l.delta)>0) s) AS location_ids FROM products p LEFT JOIN categories c ON c.id=p.category_id WHERE ${where} ORDER BY p.description,p.id LIMIT $5 OFFSET $6`,
       [...args, q.limit, (q.page - 1) * q.limit],
@@ -71,6 +74,13 @@ export class ProductService {
       page: q.page,
       limit: q.limit,
     };
+  }
+  async productOptions() {
+    const [categories,subcategories]=await Promise.all([
+      this.db.pool.query('SELECT id,name,active FROM categories ORDER BY name,id'),
+      this.db.pool.query('SELECT id,name,category_id,active FROM subcategories ORDER BY name,id'),
+    ]);
+    return {categories:categories.rows,subcategories:subcategories.rows};
   }
   private async candidateRows(description: string, client: Pick<PoolClient,'query'> = this.db.pool) {
     const rows=(await client.query(`SELECT p.id,p.description,p.unit,p.active,p.opening_date::text AS opening_date,p.legacy_id AS "legacyId",c.name AS category,s.name AS subcategory,

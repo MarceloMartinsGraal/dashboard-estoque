@@ -277,13 +277,16 @@ export class IntegrationService {
       return this.products.save(actor, product, c, true);
     });
   }
+  async productOptions() {return this.products.productOptions();}
   async matches(query: unknown) { return this.products.matches(query); }
   async search(query: unknown) {
     const q = validate(
-      z.object({ ...pageFields, q: z.string().max(200).default('') }).strict(),
+      z.object({ ...pageFields, q: z.string().max(200).default(''),availability:z.enum(['all','positive']).default('all'),status:z.enum(['todos','ativo','inativo','abertura_pendente']).default('todos') }).strict(),
       query,
     );
     const r = await this.products.search(q, true);
+    const distributions=r.items.length?(await this.db.pool.query(`SELECT m.product_id,a.id,a.code,a.name,a.active,SUM(l.delta)::text quantity FROM movements m JOIN ledger l ON l.movement_id=m.id JOIN locations a ON a.id=l.location_id WHERE m.product_id=ANY($1::uuid[]) GROUP BY m.product_id,a.id HAVING SUM(l.delta)>0 ORDER BY a.code,a.id`,[r.items.map(p=>p.id)])).rows:[];
+
     return {
       ...r,
       items: r.items.map((p) => ({
@@ -294,6 +297,7 @@ export class IntegrationService {
         legacyId: p.legacy_id?.toString() ?? null,
         quantity: p.quantity,
         openingDate: p.opening_date,
+        locations:distributions.filter(l=>l.product_id===p.id).map(({product_id,...l})=>({...l,quantity:formatQuantity(BigInt(l.quantity))})),
       })),
     };
   }
@@ -408,6 +412,9 @@ export class IntegrationService {
 @UseGuards(IntegrationGuard)
 export class IntegrationController {
   constructor(private readonly service: IntegrationService) {}
+  @SetMetadata('integration:scope', 'read')
+  @Get('product-options')
+  productOptions() {return this.service.productOptions();}
   @SetMetadata('integration:scope', 'read')
   @Get('product-matches')
   productMatches(@Query() q: unknown) {return this.service.matches(q);}

@@ -133,3 +133,26 @@ SHOW INDEX FROM glpi_plugin_estoquegraal_intents;
 Esses comandos não foram executados nesta entrega. Se faltar tabela/coluna/índice, guarde diagnóstico/backup e investigue histórico da instalação antes de propor migração. Não reinstale/desinstale para reconstruir automaticamente a tabela: isso pode perder intenções necessárias para recuperação. Não há script de alteração de schema para esta versão.
 
 Após atualizar, recarregue a página completa e consulte a lista: registros existentes devem aparecer somente no seu contexto; lista realmente vazia deve mostrar Nenhuma operação pendente. Uma falha real deve manter o diagnóstico visível. Não repita movimentações para validar a lista.
+
+## Atualização 0.1.7 — busca padrão e cadastro rápido
+
+**Atualize também o backend do dashboard** antes do plugin. O frontend do dashboard não mudou, mas recompile o projeto conforme procedimento habitual. O backend precisa reconhecer os parâmetros opcionais availability/status e GET product-options; pacote novo com backend antigo mostra erro de consulta, sem assumir catálogo vazio. Não há migração de banco ou mudança nas regras de saldo/abertura. Em seguida atualize a pasta estoquegraal completa, sem desinstalar, mantendo configurações/direitos/intenções e seguindo cache/recarga completa da seção0.1.2.
+
+Arquivos runtime alterados: backend/src/products.ts e integration.ts; plugin setup.php, ajax/endpoint.php, lib/ApiClient.php, lib/Operations.php, lib/View.php e public/js/app.js. O ZIP contém o plugin inteiro. Preserve o patch já presente no repositório; não substitua código atual por ZIP antigo. Os testes PHP novos ficam em tests/ na raiz, pois a cópia atual do plugin não contém a antiga pasta tests/.
+
+Ao abrir a aba, a busca já consulta **somente produtos ativos com saldo operacional positivo**. Não é necessário selecionar filtro. Incluir produtos sem saldo começa desmarcada; marque para encontrar ativos zerados e registrar entrada. Paginação e contagem já consideram o filtro no servidor. Cada cartão mostra descrição, quantidade, unidade e distribuição por armários. Se não houver correspondências: Nenhum produto com saldo encontrado. Pesquisar também produtos sem saldo. O botão dessa mensagem amplia a consulta; a pesquisa de possíveis duplicatas continua ampla, inclusive inativos/sem saldo, independentemente dessa preferência.
+
+O cadastro foi comparado ao formulário real Novo produto/productFields({}) em frontend/src/main.ts. Apresenta quatro campos de negócio, nesta ordem:
+
+| Campo | Obrigatoriedade | Padrão e validação |
+| --- | --- | --- |
+| Descrição | Obrigatório | Vazio; texto após trim,1..2000 caracteres |
+| Categoria | Opcional | Não classificada; vazio enviado como null, ID real do catálogo |
+| Subcategoria | Opcional | Não informada; null por padrão, exige categoria compatível |
+| Situação | Obrigatório | Ativo; seleção Ativo/Inativo, boolean no backend |
+
+Armário só aparece no dashboard na edição de produto com abertura e não integra os quatro campos novos. Unidade permanece implícita unidade. As opções vêm do backend; subcategorias do plugin são restritas à categoria escolhida e mostram Categoria / Subcategoria. Falha na consulta é mostrada e impede revisar o cadastro até recuperação; não são inventadas opções. Não se pede identidade, instância ou chamado ao usuário.
+
+O alerta de similaridade continua antes de preparar e o backend revalida antes de salvar. É um produto diferente só aparece quando há candidatos; a justificativa adicional só aparece/é exigida quando essa confirmação é marcada. Usar produto existente evita novo cadastro. Produto inativo não é reativado automaticamente; eventual revisão de situação segue o dashboard. Erro de validação do cadastro fica separado da lista de candidatos, mantendo-a visível.
+
+Cadastro não cria quantidade. Novo produto da integração continua com base zero e primeira entrada separada, revisada e confirmada. Falha/reenvio da entrada não repete cadastro. Produto criado inativo não pode ser movimentado enquanto sua situação não for revista pelo fluxo existente.

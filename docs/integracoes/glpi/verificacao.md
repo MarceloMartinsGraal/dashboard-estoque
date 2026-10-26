@@ -25,19 +25,16 @@ Produtos novos criados pela integração usam base zero registrada atomicamente 
 Requer PHP 8.2+ e Node.js somente como ferramentas de desenvolvimento; nenhuma dependência adicional é instalada.
 
 ```sh
-php glpi-plugin/estoquegraal/tests/run.php
-php glpi-plugin/estoquegraal/tests/endpoint.php
-node --test glpi-plugin/estoquegraal/tests/ui.test.cjs
+php tests/glpi-quick-product.php
 node --check glpi-plugin/estoquegraal/public/js/app.js
-node scripts/test-glpi-plugin.cjs
-# Opcional: Edge local; EDGE_BINARY permite indicar o navegador
+node scripts/test-glpi-search-proxy.cjs
 node scripts/test-glpi-plugin-browser.cjs
 python scripts/package-glpi-plugin.py
 ```
 
-O teste HTTP requer PHP/cURL no PATH; `PHP_BINARY` permite indicar o executável. Para PHP Windows portátil, `PHP_EXTENSION_DIR` indica a pasta ext e habilita curl no processo de teste. O servidor simulado escuta somente loopback e usa dados sintéticos. Nunca aponte estes testes para servidor real.
+O teste HTTP atual requer PHP/cURL/mbstring no PATH; `PHP_BINARY` permite indicar o executável. Para PHP Windows portátil, `PHP_EXTENSION_DIR` indica a pasta ext e habilita curl no processo de teste. O servidor simulado escuta somente loopback e usa dados sintéticos. Nunca aponte estes testes para servidor real.
 
-## Evidência desta entrega
+## Evidência histórica da entrega inicial
 
 - PHP 8.3.36 portátil oficial, SHA-256 verificado: 11 grupos passaram (configuração, HTTP construído, erros/segredos, autoria/contexto, intenção imutável, timeout/recuperação, clique concorrente, cadastro separado, permissões/entidade e escape HTML/versão).
 - Node: 2 testes passaram (quantidades pt-BR e descarte de respostas antigas).
@@ -144,3 +141,21 @@ php glpi-plugin/estoquegraal/tests/endpoint.php --invalid-json
 Opcionalmente tests/intents.php recebe dois caminhos de cópias locais oficiais de src/DBmysql.php e src/DBmysqlIterator.php tag11.0.5 para executar o construtor original. Essas fontes de pesquisa ficam fora do pacote e não inicializam instalação GLPI.
 
 Revisão independente estática não encontrou defeitos adicionais no ajuste; confirmou preservação dos filtros/schema/idempotência. O HTTP500 do requestId informado permanece sem correlação com logs instalados, indisponíveis ao usuário neste momento. Não foi presumida necessidade de migração nem executado comando em servidor/banco real. Homologação GLPI e conferência dos metadados instalados continuam pendentes.
+
+### Busca disponível e quatro campos — 0.1.7 (26/10/2026)
+
+Requisitos/UI confrontados com frontend/src/main.ts productFields({}), control() e productSchema. Teste de navegador executa a própria função do dashboard, transpilada pelo TypeScript já instalado, e compara nomes/ordem/required/valores padrão com os controles do plugin. Confirmados description/categoryId/subcategoryId/active, sem quantidade e sem campos financeiros/identidade. Teste PHP novo prepara os quatro campos e valida UUID, boolean, subcategoria com categoria, comprimento Unicode e defaults.
+
+66 testes backend passaram em PostgreSQL descartável loopback. Regressões novas:33 produtos (zerados antes dos positivos na ordem), filtro/count antes da paginação, página1 e2 com limit1, exclusão de inativo, inclusão de zerados, busca antiga dashboard preservada e product-matches amplo; saldo positivo somente no legado não entra em disponibilidade. GET product-options usa classificações reais. Cadastro com quatro campos grava os valores, continua sem movimentos/quantidade e com base zero; entrada separada e replay resultam em único movimento. Testes de saldo/concorrência/importação/estorno/autorização existentes permanecem aprovados. Os dois testes novos foram observados falhar antes da implementação (400 por filtro desconhecido e404 de options).
+
+Navegador local com View/JS reais e API sintética: busca inicial automática com opção zerados desmarcada, filtro explícito nas pesquisas e vazio oferecendo ampliar; quatro campos comparados ao dashboard; categorias/subcategorias na intenção; justificativa oculta até confirmação e candidatos preservados. Regressões anteriores de seleção/timeout/atualizações por seção também passaram. Testes sintéticos de UI não comprovam GLPI instalado.
+
+Proxy PHP real com cURL contra API loopback sintética: search sem opção envia status ativo/availability positive; opção true envia all; product_options retorna catálogo; matches não recebe filtro de disponibilidade e retorna candidato inativo/zerado. Nenhum servidor ou estoque real foi usado. Novos comandos:
+
+```sh
+php tests/glpi-quick-product.php
+node scripts/test-glpi-search-proxy.cjs
+node scripts/test-glpi-plugin-browser.cjs
+```
+
+O segundo comando requer PHP/cURL/mbstring no PATH; PHP_BINARY/PHP_EXTENSION_DIR permitem indicar runtime portátil. Regressões PHP antigas internas ao plugin não estavam presentes no checkout atual (patch anterior); não foram restauradas nem declaradas executadas. Mantida a estrutura/correções do patch atual e adicionados testes na pasta tests/ do repositório. Lint/build e sintaxe verificados nesta entrega. Revisão independente confirmou filtro antes da paginação e contratos opcionais; recomendação de carga inicial automática aplicada e testada. Homologação real no GLPI e atualização do backend continuam pendentes de execução pelo administrador.

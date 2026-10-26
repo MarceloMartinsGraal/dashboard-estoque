@@ -213,3 +213,5 @@ Plugin0.1.4: seleção de produtos com feedback visível e revisão de possívei
 Plugin0.1.5: confirmação independente das leituras, erros locais por seção e diagnóstico sanitizado por requestId. Atualização somente do plugin, mantendo backend compatível anterior; consulte [guia de atualização e diagnóstico](docs/integracoes/glpi/operacao.md).
 
 Plugin0.1.6: corrige ordenação da consulta intents no construtor SQL do GLPI11.0.5; lista vazia é sucesso, falhas reais permanecem visíveis. Atualização somente do plugin, sem migração; ver [procedimento e limitações](docs/integracoes/glpi/operacao.md).
+
+Plugin0.1.7: busca inicial automática de ativos com saldo operacional positivo e opção Incluir produtos sem saldo; cadastro com Descrição/Categoria/Subcategoria/Situação igual ao Novo produto do dashboard. Exige atualização do backend, sem migração. Consulte [atualização e verificações](docs/integracoes/glpi/operacao.md).

@@ -564,3 +564,38 @@ test('possíveis duplicatas: catálogo inteiro, inativos/zero, confirmação aud
  const broken=new ProductService({pool:{query:async()=>{throw new Error('synthetic unavailable')}}});
  await assert.rejects(()=>broken.matches({description:q}),/synthetic unavailable/);
 });
+
+test('busca disponível do plugin filtra antes de paginar e não altera dashboard/duplicidade',async()=>{
+ process.env.INTEGRATION_ENABLED='true';
+ const stock=new StockService(db);const ids=[];
+ for(let n=0;n<33;n++)ids.push((await db.pool.query("INSERT INTO products(description,unit,active) VALUES($1,'unidade',true) RETURNING id",['Disponibilidade ÁUDIO '+String(n).padStart(2,'0')])).rows[0].id);
+ for(const id of ids.slice(30))await stock.opening(actor,id,'2026-01-01',[{locationId:a,quantity:'2'}],'Contagem teste');
+ await db.pool.query('UPDATE products SET active=false WHERE id=$1',[ids[32]]);
+ const query='/products?'+new URLSearchParams({q:'disponibilidade audio',availability:'positive',status:'ativo',page:'1',limit:'1'});
+ const first=await get(query);assert.equal(first.status,200);assert.equal(first.body.total,2);assert.equal(first.body.items[0].id,ids[30]);assert.equal(first.body.items[0].locations[0].code,'INT-A');
+ const second=await get(query.replace('page=1','page=2'));assert.equal(second.body.items[0].id,ids[31]);assert.equal(second.body.total,2);
+ const legacy=(await db.pool.query("INSERT INTO products(description,unit) VALUES('Legado exclusivo sem operação','unidade') RETURNING id")).rows[0].id;
+ const batch=(await db.pool.query("INSERT INTO import_batches(source,checksum,created_by,payload,preview) VALUES('synthetic-availability','synthetic-availability',$1,'{}','{}') RETURNING id",[actor])).rows[0].id;
+ await db.pool.query("INSERT INTO legacy_movements(batch_id,source,legacy_id,product_id,kind,quantity,event_date,reason,date_estimated,zero_evidence) VALUES($1,'synthetic-availability',1,$2,'entrada',5000,'2026-01-01','legado não informado',false,false)",[batch,legacy]);
+ const legacySearch=await get('/products?'+new URLSearchParams({q:legacy,availability:'positive',status:'ativo'}));assert.equal(legacySearch.body.total,0);
+ assert.equal((await get('/products?'+new URLSearchParams({q:legacy,availability:'all',status:'ativo'}))).body.items[0].quantity,'0.000');
+ const all=await get(query.replace('availability=positive','availability=all'));assert.equal(all.body.total,32);assert.equal(all.body.items[0].quantity,'0.000');
+ const {ProductService}=require('../dist/backend/products');assert.equal((await new ProductService(db).search({q:'Disponibilidade'})).total,33);
+ const duplicates=await get('/product-matches?'+new URLSearchParams({description:'Disponibilidade ÁUDIO 00'}));assert.equal(duplicates.body.total,33);
+});
+test('cadastro quatro campos usa opções reais e mantém base zero/entrada separada',async()=>{
+ process.env.INTEGRATION_ENABLED='true';
+ const category=(await db.pool.query("INSERT INTO categories(name) VALUES('Categoria teste rápido') RETURNING id")).rows[0].id;
+ const sub=(await db.pool.query("INSERT INTO subcategories(name,category_id) VALUES('Subcategoria teste rápido',$1) RETURNING id",[category])).rows[0].id;
+ const options=await get('/product-options');assert.equal(options.status,200);assert.ok(options.body.categories.some(x=>x.id===category));assert.ok(options.body.subcategories.some(x=>x.id===sub&&x.category_id===category));
+ const body={description:'Equipamento Boreal Q7 exclusivo',categoryId:category,subcategoryId:sub,active:true,externalUserId:'0007'};
+ const created=await post('/products','four-field-product',body);assert.equal(created.status,201);assert.equal((await post('/products','four-field-product',body)).body.id,created.body.id);
+ const balances=await get('/products/'+created.body.id+'/balances');assert.equal(balances.body.total,'0.000');assert.ok(balances.body.openingDate);
+ const saved=(await db.pool.query('SELECT * FROM products WHERE id=$1',[created.body.id])).rows[0];assert.equal(saved.category_id,category);assert.equal(saved.subcategory_id,sub);assert.equal(saved.unit,'unidade');assert.equal(saved.active,true);
+ assert.equal((await db.pool.query('SELECT id FROM movements WHERE product_id=$1',[created.body.id])).rowCount,0);
+ const entry=movement({productId:created.body.id,eventDate:balances.body.openingDate,kind:'entrada',quantity:'1'});
+ assert.equal((await post('/movements','four-field-first-entry',entry)).status,201);assert.equal((await post('/movements','four-field-first-entry',entry)).status,201);
+ assert.equal((await get('/products/'+created.body.id+'/balances')).body.total,'1.000');
+ assert.equal((await post('/products','four-field-invalid',{...body,description:'Outro sem categoria',categoryId:null})).status,400);
+ assert.equal((await post('/products','four-field-invalid-type',{...body,active:'true'})).status,400);
+});
