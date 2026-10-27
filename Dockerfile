@@ -8,6 +8,8 @@ COPY tests ./tests
 RUN npm run build
 
 FROM build AS test
+COPY docs/integracoes/integration-v1.openapi.json ./docs/integracoes/integration-v1.openapi.json
+COPY scripts/provision-integration.cjs ./scripts/provision-integration.cjs
 CMD ["sh", "-c", "npm run lint && npm run test:compiled"]
 
 FROM node:24.22.0-bookworm-slim AS runtime

@@ -27,7 +27,7 @@ export const productSchema = z
 @Injectable()
 export class ProductService {
   constructor(private readonly db: Database) {}
-  async search(query: unknown, integrationSearch = false) {
+  async search(query: unknown, integrationSearch = false, client: Pick<PoolClient, 'query'> = this.db.pool) {
     const q = validate(
       z
         .object({
@@ -55,12 +55,12 @@ export class ProductService {
     const positive=integrationSearch&&'availability' in q&&q.availability==='positive';
     const availability=positive?` AND p.active AND COALESCE((SELECT SUM(l.delta) FROM movements m JOIN ledger l ON l.movement_id=m.id WHERE m.product_id=p.id),0)>0`:'';
     const where = `${search}${availability} AND ($2::uuid IS NULL OR p.category_id=$2) AND ($3::uuid IS NULL OR EXISTS(SELECT 1 FROM ledger l JOIN movements m ON m.id=l.movement_id WHERE m.product_id=p.id AND l.location_id=$3)) AND ($4='todos' OR ($4='ativo' AND p.active) OR ($4='inativo' AND NOT p.active) OR ($4='abertura_pendente' AND p.opening_date IS NULL))`;
-    const items = await this.db.pool.query(
+    const items = await client.query(
       `SELECT p.*,p.opening_date::text AS opening_date,c.name AS category,(SELECT COALESCE(SUM(l.delta),0)::text FROM movements m JOIN ledger l ON l.movement_id=m.id WHERE m.product_id=p.id) AS quantity,(SELECT COALESCE(jsonb_agg(s.location_id),'[]'::jsonb) FROM (SELECT l.location_id FROM movements m JOIN ledger l ON l.movement_id=m.id WHERE m.product_id=p.id GROUP BY l.location_id HAVING SUM(l.delta)>0) s) AS location_ids FROM products p LEFT JOIN categories c ON c.id=p.category_id WHERE ${where} ORDER BY p.description,p.id LIMIT $5 OFFSET $6`,
       [...args, q.limit, (q.page - 1) * q.limit],
     );
     const total = (
-      await this.db.pool.query(
+      await client.query(
         `SELECT COUNT(*) FROM products p WHERE ${where}`,
         args,
       )
@@ -75,10 +75,10 @@ export class ProductService {
       limit: q.limit,
     };
   }
-  async productOptions() {
+  async productOptions(client: Pick<PoolClient, 'query'> = this.db.pool) {
     const [categories,subcategories]=await Promise.all([
-      this.db.pool.query('SELECT id,name,active FROM categories ORDER BY name,id'),
-      this.db.pool.query('SELECT id,name,category_id,active FROM subcategories ORDER BY name,id'),
+      client.query('SELECT id,name,active FROM categories ORDER BY name,id'),
+      client.query('SELECT id,name,category_id,active FROM subcategories ORDER BY name,id'),
     ]);
     return {categories:categories.rows,subcategories:subcategories.rows};
   }

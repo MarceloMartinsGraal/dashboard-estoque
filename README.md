@@ -219,3 +219,8 @@ Plugin0.1.7: busca inicial automática de ativos com saldo operacional positivo 
 ## Configuração assistida por IP e SSH
 
 Consulte [configuração automática](docs/configuracao-automatica.md) para preparar o dashboard de homologação e configurar o GLPI por SSH. Produção continua exigindo HTTPS.
+
+
+## API e integração: revisão de 27/10/2026
+
+Consulte o [diagnóstico, arquitetura e atualização/recuperação](docs/integracoes/api-reconstrucao.md), o [inventário de endpoints e consumidores](docs/integracoes/api-inventario.md) e o [OpenAPI canônico](docs/integracoes/integration-v1.openapi.json). Reconstrução incremental compatível da integração; sem migração nova ou mudança do plugin0.1.8. Testar em banco novo loopback terminado em `_test`: configurar `TEST_DATABASE_URL` e executar `npm test`. A suíte confere respostas v1 contra o OpenAPI e, havendo PHP/cURL local, testa o cliente PHP real contra backend local. Use `PHP_BINARY` e, se necessário, `PHP_EXTENSION_DIR` para o runtime já disponível; nenhuma dependência nova precisa ser instalada. Homologação em GLPI/Ubuntu é uma etapa separada autorizada.

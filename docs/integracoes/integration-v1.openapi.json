@@ -2,13 +2,13 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Dashboard Graal — Integração v1",
-    "version": "1.0.0",
-    "description": "Dashboard preparado para integração. Sem plugin ou chamadas GLPI. Desabilitado por padrão. Instância determinada pela credencial; permissões GLPI devem ser verificadas pelo futuro servidor do plugin. Ver integration-v1.md para erros e exemplos. O catálogo/estoque é compartilhado; referências de chamados e resultados idempotentes são isolados por instância."
+    "version": "1.0.1",
+    "description": "Contrato compatível do dashboard com Estoque Graal. Desabilitado por padrão. O plugin verifica permissões no GLPI 11.0.5; a API autentica a credencial e resolve o funcionário vinculado. Catálogo e estoque compartilhados; referências de chamados e resultados idempotentes isolados por instância. HTTP privado somente em homologação explícita; produção exige HTTPS."
   },
   "servers": [
     {
       "url": "http://localhost:3000/api/integration/v1",
-      "description": "Somente desenvolvimento local; futura publicação exige HTTPS."
+      "description": "Desenvolvimento local. Homologação privada HTTP usa configuração explícita existente; produção exige HTTPS."
     }
   ],
   "paths": {
@@ -30,6 +30,15 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "401": {
@@ -38,6 +47,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -50,14 +68,32 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "503": {
-            "description": "Integração desabilitada",
+            "description": "Integração desabilitada ou dependência temporariamente indisponível; distinguir pelo code e consultar resultado antes de repetir escrita.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -70,6 +106,15 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "200": {
@@ -78,6 +123,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Products"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -165,6 +219,15 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "401": {
@@ -173,6 +236,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -185,6 +257,15 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "409": {
@@ -195,14 +276,32 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "503": {
-            "description": "Integração desabilitada",
+            "description": "Integração desabilitada ou dependência temporariamente indisponível; distinguir pelo code e consultar resultado antes de repetir escrita.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -215,6 +314,15 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "201": {
@@ -223,6 +331,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreatedProduct"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -270,6 +387,15 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "401": {
@@ -278,6 +404,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -290,6 +425,15 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "404": {
@@ -300,14 +444,32 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "503": {
-            "description": "Integração desabilitada",
+            "description": "Integração desabilitada ou dependência temporariamente indisponível; distinguir pelo code e consultar resultado antes de repetir escrita.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -320,6 +482,15 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "200": {
@@ -328,6 +499,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Balances"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -364,6 +544,15 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "401": {
@@ -372,6 +561,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -384,14 +582,32 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "503": {
-            "description": "Integração desabilitada",
+            "description": "Integração desabilitada ou dependência temporariamente indisponível; distinguir pelo code e consultar resultado antes de repetir escrita.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -404,6 +620,15 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "200": {
@@ -412,6 +637,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Locations"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -473,6 +707,15 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "401": {
@@ -481,6 +724,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -493,6 +745,15 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "404": {
@@ -503,14 +764,32 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "503": {
-            "description": "Integração desabilitada",
+            "description": "Integração desabilitada ou dependência temporariamente indisponível; distinguir pelo code e consultar resultado antes de repetir escrita.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -523,6 +802,15 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "200": {
@@ -531,6 +819,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Locations"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -602,6 +899,15 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "401": {
@@ -610,6 +916,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -622,6 +937,15 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "404": {
@@ -630,6 +954,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -642,14 +975,32 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "503": {
-            "description": "Integração desabilitada",
+            "description": "Integração desabilitada ou dependência temporariamente indisponível; distinguir pelo code e consultar resultado antes de repetir escrita.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -662,6 +1013,15 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "201": {
@@ -670,6 +1030,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MovementResult"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -716,6 +1085,15 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "401": {
@@ -724,6 +1102,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -736,24 +1123,51 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "404": {
-            "description": "Operação inexistente na instância autenticada",
+            "description": "Resultado ainda não visível ou chave inexistente nesta instância. Pode haver transação em andamento: manter a mesma chave; não criar outra automaticamente.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "503": {
-            "description": "Integração desabilitada",
+            "description": "Integração desabilitada ou dependência temporariamente indisponível; distinguir pelo code e consultar resultado antes de repetir escrita.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -766,6 +1180,15 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "200": {
@@ -774,6 +1197,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Operation"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -810,6 +1242,15 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "401": {
@@ -818,6 +1259,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -830,14 +1280,32 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "503": {
-            "description": "Integração desabilitada",
+            "description": "Integração desabilitada ou dependência temporariamente indisponível; distinguir pelo code e consultar resultado antes de repetir escrita.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -850,6 +1318,15 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "200": {
@@ -858,6 +1335,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/History"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -964,6 +1450,15 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "401": {
@@ -972,6 +1467,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -984,14 +1488,32 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "503": {
-            "description": "Integração desabilitada",
+            "description": "Integração desabilitada ou dependência temporariamente indisponível; distinguir pelo code e consultar resultado antes de repetir escrita.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -1004,6 +1526,15 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "200": {
@@ -1012,6 +1543,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProductMatches"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -1037,6 +1577,15 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "401": {
@@ -1045,6 +1594,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -1057,14 +1615,32 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "503": {
-            "description": "Integração desabilitada",
+            "description": "Integração desabilitada ou dependência temporariamente indisponível; distinguir pelo code e consultar resultado antes de repetir escrita.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -1077,6 +1653,15 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "200": {
@@ -1085,6 +1670,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProductOptions"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlação gerada pelo backend; não ecoa entrada do cliente.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -1107,7 +1701,9 @@
         "type": "object",
         "required": [
           "statusCode",
-          "message"
+          "message",
+          "code",
+          "requestId"
         ],
         "properties": {
           "statusCode": {
@@ -1115,6 +1711,23 @@
           },
           "message": {
             "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "description": "Código estável de classificação; PRODUCT_CANDIDATES inclui candidateIds."
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Gerado no backend, também em X-Request-Id e no log. Diferente do requestId local do plugin."
+          },
+          "candidateIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Somente no conflito PRODUCT_CANDIDATES; revisar catálogo, não mesclar automaticamente."
           }
         }
       },
@@ -1186,7 +1799,7 @@
           },
           "locations": {
             "type": "array",
-            "description": "Distribuição operacional positiva nos armários do produto retornado; ordenada por código/ID. Não soma legado.",
+            "description": "Distribuição operacional positiva por armário, ordenada por código e ID. Não soma legado; mesmo snapshot de quantity e total da página.",
             "items": {
               "type": "object",
               "required": [

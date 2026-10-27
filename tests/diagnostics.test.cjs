@@ -8,6 +8,8 @@ const {
 function response(status) {
   const res = new EventEmitter();
   res.locals = {};
+  res.headers = {};
+  res.setHeader = (name,value) => {res.headers[name.toLowerCase()]=value;};
   res.statusCode = status;
   return res;
 }
@@ -53,6 +55,7 @@ test('logs correlacionam falhas sem expor corpo, query, tokens, cookies ou IDs e
       assert.equal(record.status, status);
       assert.equal(record.databaseCode, '23514');
       assert.match(record.requestId, /^[0-9a-f-]{36}$/);
+      assert.equal(res.headers['x-request-id'],record.requestId);
       ids.add(record.requestId);
       assert.deepEqual(
         Object.keys(record).sort(),

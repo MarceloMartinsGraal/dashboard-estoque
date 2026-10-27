@@ -1,11 +1,8 @@
-import { requestDiagnostics, captureDatabaseCode } from './diagnostics';
+import { requestDiagnostics } from './diagnostics';
+import { SafeErrors } from './http-errors';
 import 'reflect-metadata';
 import {
-  ArgumentsHost,
-  Catch,
-  ExceptionFilter,
   Global,
-  HttpException,
   Module,
 } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
@@ -75,31 +72,6 @@ class IntegrationModule {}
   ],
 })
 class AppModule {}
-@Catch()
-class SafeErrors implements ExceptionFilter {
-  catch(error: any, host: ArgumentsHost) {
-    const res = host.switchToHttp().getResponse<Response>();
-    captureDatabaseCode(res, error);
-    let status = 500,
-      message = 'Falha interna; tente novamente';
-    if (error instanceof HttpException) {
-      status = error.getStatus();
-      const response = error.getResponse();
-      message =
-        typeof response === 'string' ? response : (response as any).message;
-    } else if (
-      error?.type === 'entity.parse.failed' ||
-      error?.type === 'entity.too.large'
-    ) {
-      status = error.type === 'entity.too.large' ? 413 : 400;
-      message = 'JSON inválido ou limite de tamanho excedido';
-    } else if (['23505', '23503', '23514', '22P02'].includes(error?.code)) {
-      status = 409;
-      message = 'Dados conflitantes ou referência inválida';
-    }
-    res.status(status).json({ statusCode: status, message });
-  }
-}
 export async function createApp() {
   const secret = process.env.SESSION_SECRET;
   const origin = process.env.PUBLIC_ORIGIN;

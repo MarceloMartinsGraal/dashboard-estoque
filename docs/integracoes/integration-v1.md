@@ -1,6 +1,6 @@
 # Dashboard preparado para integração — contrato v1
 
-Esta entrega prepara somente o Dashboard Graal. Não instala plugin, não valida permissões internas de GLPI, não contata GLPI (inclusive 11.0.5), não configura webhook e não contém credenciais reais. Compatibilidade com uma versão de GLPI será verificada na etapa futura do plugin.
+Contrato do backend usado pelo plugin Estoque Graal (atual 0.1.8, alvo GLPI 11.0.5). O plugin verifica acesso ao chamado; a API não contata o GLPI nem valida suas permissões internas. Homologação completa no GLPI permanece pendente. Ver [diagnóstico, arquitetura e atualização da API](api-reconstrucao.md).
 
 ## Arquitetura e limites
 
@@ -12,7 +12,7 @@ Sem estoque paralelo, edição de saldo, importação, aprovação de abertura, 
 
 `INTEGRATION_ENABLED=false` é o padrão, inclusive se a variável não existir. Somente o texto exato `true` habilita. A migração 005 cria tabelas vazias; clientes novos são inativos por padrão. Nenhum segredo é lido de `.env` para esta autenticação: o banco guarda apenas SHA-256 de segredo aleatório de 256 bits, identificação do cliente, instância, permissões e validade obrigatória. SHA-256 é usado para segredo de alta entropia; senhas pessoais continuam Argon2.
 
-Formato: `Authorization: Bearer <uuid-do-cliente>.<segredo-hex-64>`. Os placeholders não são credenciais. Transporte HTTPS é obrigatório na futura publicação; HTTP é usado exclusivamente nos testes em loopback. Nenhum token/cookie deve ir em query string ou logs. Não há CORS/browser plugin nesta etapa: o futuro servidor do plugin fará a chamada. Cookies pessoais não autenticam integração e essas rotas não criam/leem sessões; apenas nelas o CSRF por cookie não se aplica. Nas rotas pessoais, sessão e CSRF permanecem obrigatórios e Bearer não os substitui.
+Formato: `Authorization: Bearer <uuid-do-cliente>.<segredo-hex-64>`. Os placeholders não são credenciais. Transporte HTTPS é obrigatório na produção. HTTP é permitido em loopback e na homologação privada explicitamente configurada pelo [procedimento existente](../configuracao-automatica.md). Nenhum token/cookie deve ir em query string ou logs. Não há CORS/browser plugin nesta etapa: o servidor PHP do plugin faz a chamada. Cookies pessoais não autenticam integração e essas rotas não criam/leem sessões; apenas nelas o CSRF por cookie não se aplica. Nas rotas pessoais, sessão e CSRF permanecem obrigatórios e Bearer não os substitui.
 
 Escopos: `read` para GET/HEAD; `products:write` para POST products; `movements:write` para POST movements. A permissão é definida na rota, não por dados do corpo. Cliente revogado (`active=false`), expirado ou segredo divergente recebe 401. Revogação/permissões/validade são reconferidas na transação de escrita, após esperar a chave, com lock compartilhado até commit. Pedidos já linearizados podem terminar antes de a revogação obter o lock; não há cancelamento retroativo.
 
@@ -292,3 +292,18 @@ GET /products aceita parâmetros **opcionais** availability=all|positive (padrã
 O plugin aplica automaticamente status=ativo e availability=positive em toda pesquisa inicial/manual/paginada. Incluir produtos sem saldo, inicialmente desmarcada, muda somente availability para all (mantém ativos). Quando não há resultados, oferece pesquisar também sem saldo antes do cadastro. product-matches permanece independente e consulta todo o catálogo, inclusive inativos/zerados.
 
 GET /product-options, escopo read, retorna categories e subcategories (id/name/active, mais category_id para subcategorias), ordenadas por name/id. Usa o catálogo real sem gravar dados, inclusive classificações inativas como o formulário existente do dashboard. Não há campos novos no produto: POST /products já aceita description, categoryId, subcategoryId e active, com unit implícito unidade. Categoria/subcategoria vazias viram null. Subcategoria exige categoria e a FK composta existente garante o par compatível. Sem endpoints administrativos adicionais, migração ou alteração de escopos.
+
+
+## Revisão compatível 1.0.1 do contrato — 27/10/2026
+
+Endpoints e respostas de sucesso v1 preservados. A organização interna está em `backend/src/integration/`; `integration.ts` mantém os exports existentes. Leituras compostas de busca, saldos e armários usam transação PostgreSQL REPEATABLE READ READ ONLY: contagem, página e distribuição são do mesmo snapshot. Recarregar é uma nova leitura, que pode mostrar movimentos posteriores.
+
+Erros do filtro HTTP mantêm `statusCode` e `message` e acrescentam `code` e `requestId`. Header `X-Request-Id` também acompanha sucessos, CSRF e health. O log sanitizado do backend contém o mesmo requestId dos erros; procure-o no log do serviço API. O requestId do endpoint PHP identifica outra requisição e não deve ser confundido com este.
+
+Exemplo fictício: `{"statusCode":409,"message":"Possíveis duplicatas encontradas...","code":"PRODUCT_CANDIDATES","candidateIds":["11111111-1111-4111-8111-111111111111"],"requestId":"22222222-2222-4222-8222-222222222222"}`. Nunca envie credenciais ao solicitar diagnóstico. O filtro permite somente metadados conhecidos; SQL, stack e mensagens brutas do banco não saem na resposta.
+
+Códigos: INVALID_INPUT(400), UNAUTHENTICATED(401), FORBIDDEN(403), NOT_FOUND(404), CONFLICT ou PRODUCT_CANDIDATES(409), PAYLOAD_TOO_LARGE(413), RATE_LIMITED(429 quando aplicável), SERVICE_UNAVAILABLE(503, integração desabilitada), DEPENDENCY_UNAVAILABLE(503, conexão/dependência reconhecida) e INTERNAL_ERROR(500). Não há limitador novo da integração: o 429 existente pertence ao login pessoal. O middleware CSRF mantém sua resposta específica com `message`; health mantém `status`. Os cabeçalhos de correlação estão presentes em ambos.
+
+GET operations retorna 404 enquanto a transação ainda não confirmou e também para uma chave inexistente na instância. Isso não comprova rejeição de uma escrita cujo resultado se perdeu. Aguarde e consulte novamente; mantenha a mesma intenção/chave e o fluxo atual de recuperação. POST simultâneo com mesma chave espera o lock, revalida autorização e retorna o resultado original após commit. Sem reservas parciais persistidas, sem nova chave automática. Uma falha na consulta continua sendo falha, nunca lista vazia.
+
+Atualizar apenas o backend é suficiente para esta revisão; plugin 0.1.8 aceita os campos aditivos e mantém seu tratamento de erros. Nenhuma migração nova. Procedimento de atualização/recuperação e limites de testes: [api-reconstrucao.md](api-reconstrucao.md).

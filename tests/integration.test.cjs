@@ -8,6 +8,7 @@ const { createApp } = require('../dist/backend/app');
 const { StockService } = require('../dist/backend/stock');
 let db, app, http, actor, product, a, b, token, client;
 const root = '/api/integration/v1';
+const contract=require('./openapi-response.cjs');
 async function credential(
   instance = 'glpi-synthetic',
   scopes = ['read', 'products:write', 'movements:write'],
@@ -27,13 +28,13 @@ async function credential(
   return { id: c, token: c + '.' + secret };
 }
 const get = (path, t = token) =>
-  http.get(root + path).set('Authorization', 'Bearer ' + t);
+  http.get(root + path).set('Authorization', 'Bearer ' + t).then(r=>contract.response('GET',path,r));
 const post = (path, key, body, t = token) =>
   http
     .post(root + path)
     .set('Authorization', 'Bearer ' + t)
     .set('Idempotency-Key', key)
-    .send(body);
+    .send(body).then(r=>contract.response('POST',path,r));
 const movement = (extra = {}) => ({
   productId: product,
   kind: 'entrada',
@@ -598,4 +599,152 @@ test('cadastro quatro campos usa opções reais e mantém base zero/entrada sepa
  assert.equal((await get('/products/'+created.body.id+'/balances')).body.total,'1.000');
  assert.equal((await post('/products','four-field-invalid',{...body,description:'Outro sem categoria',categoryId:null})).status,400);
  assert.equal((await post('/products','four-field-invalid-type',{...body,active:'true'})).status,400);
+});
+
+
+test('contrato de erro conserva revisão de duplicatas e correlaciona resposta com log', async () => {
+  process.env.INTEGRATION_ENABLED='true';
+  const warnings=[];const original=console.warn;console.warn=(s)=>warnings.push(s);
+  let r;
+  try {r=await post('/products','error-candidates-contract',{description:'Memória ÁUDIO',unit:'unidade',active:true,externalUserId:'0007'});}
+  finally {console.warn=original;}
+  assert.equal(r.status,409);
+  assert.equal(r.body.code,'PRODUCT_CANDIDATES');
+  assert.ok(r.body.candidateIds.includes(product));
+  assert.match(r.body.requestId,/^[0-9a-f-]{36}$/);
+  assert.equal(r.headers['x-request-id'],r.body.requestId);
+  assert.ok(warnings.map(s=>JSON.parse(s)).some(x=>x.requestId===r.body.requestId&&x.status===409));
+});
+
+test('busca usa mesmo snapshot para saldo e armários mesmo com commit intercalado', async () => {
+  process.env.INTEGRATION_ENABLED='true';
+  const {ProductService}=require('../dist/backend/products');
+  const id=(await db.pool.query("INSERT INTO products(description,unit) VALUES('Snapshot busca exclusivo','unidade') RETURNING id")).rows[0].id;
+  const stock=new StockService(db);await stock.opening(actor,id,'2026-01-01',[{locationId:a,quantity:'2'}],'Teste snapshot');
+  const original=ProductService.prototype.search;let injected=false;
+  ProductService.prototype.search=async function(...args){
+    const result=await original.apply(this,args);
+    if(!injected){injected=true;await stock.move(actor,movementForSnapshot(id));}
+    return result;
+  };
+  let r;try {r=await get('/products?'+new URLSearchParams({q:id,availability:'positive',status:'ativo'}));}
+  finally {ProductService.prototype.search=original;}
+  assert.equal(r.status,200);assert.equal(injected,true);
+  const p=r.body.items[0];assert.equal(p.quantity,'2.000');
+  assert.equal(p.locations.reduce((sum,x)=>sum+Number(x.quantity),0),Number(p.quantity));
+  assert.equal((await get('/products/'+id+'/balances')).body.total,'3.000');
+});
+function movementForSnapshot(id){return {productId:id,kind:'entrada',quantity:'1',eventDate:'2026-01-03',locationId:a,reason:'uso_interno'};}
+
+test('saldo usa mesmo snapshot para metadados e distribuição durante alteração concorrente', async () => {
+  process.env.INTEGRATION_ENABLED='true';
+  const id=(await db.pool.query("INSERT INTO products(description,unit) VALUES('Snapshot metadados exclusivo','unidade') RETURNING id")).rows[0].id;
+  const stock=new StockService(db);await stock.opening(actor,id,'2026-01-01',[{locationId:a,quantity:'1'}],'Teste snapshot');
+  const original=StockService.prototype.balances;let injected=false;
+  StockService.prototype.balances=async function(...args){
+    const result=await original.apply(this,args);
+    if(!injected){injected=true;await db.pool.query("UPDATE locations SET name='Nome concorrente sintético' WHERE id=$1",[a]);}
+    return result;
+  };
+  const name=(await db.pool.query('SELECT name FROM locations WHERE id=$1',[a])).rows[0].name;
+  let r;try {r=await get('/products/'+id+'/balances');}
+  finally {StockService.prototype.balances=original;await db.pool.query('UPDATE locations SET name=$2 WHERE id=$1',[a,name]);}
+  assert.equal(r.status,200);assert.equal(injected,true);
+  assert.equal(r.body.locations[0].name,name);
+});
+
+
+test('erros de leitura distinguem dependência indisponível e falha interna sem lista fictícia', async () => {
+  process.env.INTEGRATION_ENABLED='true';
+  const {ProductService}=require('../dist/backend/products');const original=ProductService.prototype.matches;
+  try {
+    for(const [dbCode,status,code] of [['ECONNREFUSED',503,'DEPENDENCY_UNAVAILABLE'],['XX000',500,'INTERNAL_ERROR']]){
+      ProductService.prototype.matches=async()=>{throw Object.assign(new Error('synthetic-private-sql-token'),{code:dbCode});};
+      const r=await get('/product-matches?description=Equipamento');
+      assert.equal(r.status,status);assert.equal(r.body.code,code);
+      assert.match(r.body.requestId,/^[0-9a-f-]{36}$/);assert.equal(r.headers['x-request-id'],r.body.requestId);
+      assert.equal(r.body.items,undefined);assert.equal(JSON.stringify(r.body).includes('synthetic-private'),false);
+    }
+  } finally {ProductService.prototype.matches=original;}
+});
+
+test('snapshot inclui contagem e página mesmo com inativação entre consultas', async () => {
+  process.env.INTEGRATION_ENABLED='true';
+  const {ProductService}=require('../dist/backend/products');
+  const id=(await db.pool.query("INSERT INTO products(description,unit) VALUES('Snapshot página exclusivo','unidade') RETURNING id")).rows[0].id;
+  await new StockService(db).opening(actor,id,'2026-01-01',[{locationId:a,quantity:'1'}],'Snapshot página');
+  const {Pool}=require('pg');const original=Pool.prototype.connect;let injected=false;
+  // Decorar conexões reais: altera por outra conexão após SELECT da página, antes do COUNT.
+  Pool.prototype.connect=async function(...args){
+    if(args.length)return original.apply(this,args);
+    const c=await original.apply(this,args);const query=c.query;
+    c.query=async function(...qa){
+      const result=await query.apply(this,qa);
+      if(!injected&&typeof qa[0]==='string'&&qa[0].startsWith('SELECT p.*')&&qa[1]?.[0]===id){
+        injected=true;await db.pool.query('UPDATE products SET active=false WHERE id=$1',[id]);
+      }
+      return result;
+    };
+    const release=c.release;c.release=function(...ra){c.query=query;return release.apply(this,ra);};return c;
+  };
+  let r;try {r=await get('/products?'+new URLSearchParams({q:id,status:'ativo',availability:'positive'}));}
+  finally {Pool.prototype.connect=original;}
+  assert.equal(r.status,200);assert.equal(injected,true);assert.equal(r.body.items.length,1);assert.equal(r.body.total,1);
+  assert.equal((await get('/products?'+new URLSearchParams({q:id,status:'ativo'}))).body.total,0);
+});
+
+test('falha após lançamento reverte ledger, auditoria e resultado idempotente juntos', async () => {
+  process.env.INTEGRATION_ENABLED='true';
+  const id=(await db.pool.query("INSERT INTO products(description,unit) VALUES('Rollback integração exclusivo','unidade') RETURNING id")).rows[0].id;
+  const stock=new StockService(db);await stock.opening(actor,id,'2026-01-01',[{locationId:a,quantity:'1'}],'Rollback fixture');
+  const previous=(await db.pool.query('SELECT count(*)::int n FROM movements WHERE product_id=$1',[id])).rows[0].n;
+  await db.pool.query("CREATE FUNCTION synthetic_fail_integration_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action='integracao_movement' THEN RAISE EXCEPTION 'synthetic-private-failure'; END IF; RETURN NEW; END $$; CREATE TRIGGER synthetic_fail_integration_audit BEFORE INSERT ON audit_log FOR EACH ROW EXECUTE FUNCTION synthetic_fail_integration_audit()");
+  let r;try {r=await post('/movements','rollback-complete',movement({productId:id}));}
+  finally {await db.pool.query('DROP TRIGGER synthetic_fail_integration_audit ON audit_log; DROP FUNCTION synthetic_fail_integration_audit()');}
+  assert.equal(r.status,500);assert.equal(JSON.stringify(r.body).includes('synthetic-private'),false);
+  assert.equal((await db.pool.query('SELECT count(*)::int n FROM movements WHERE product_id=$1',[id])).rows[0].n,previous);
+  assert.equal((await get('/products/'+id+'/balances')).body.total,'1.000');assert.equal((await get('/operations/rollback-complete')).status,404);
+  assert.equal((await post('/movements','rollback-complete',movement({productId:id}))).status,201);
+});
+
+test('resultado em andamento não aparece antes do commit e recuperação usa mesma chave', async () => {
+  process.env.INTEGRATION_ENABLED='true';
+  const expired=await credential('expired-synthetic');await db.pool.query("UPDATE integration_clients SET expires_at=now()-interval '1 second' WHERE id=$1",[expired.id]);
+  assert.equal((await get('/products',expired.token)).status,401);
+  const id=(await db.pool.query("INSERT INTO products(description,unit) VALUES('Recuperação exclusiva','unidade') RETURNING id")).rows[0].id;
+  const stock=new StockService(db);await stock.opening(actor,id,'2026-01-01',[{locationId:a,quantity:'1'}],'Recuperação fixture');
+  let unlock,reached;const barrier=new Promise(r=>unlock=r);const entered=new Promise(r=>reached=r);
+  const original=StockService.prototype.move;
+  StockService.prototype.move=async function(...args){const result=await original.apply(this,args);if(args[1].productId===id){reached();await barrier;}return result;};
+  const pending=post('/movements','recover-in-progress',movement({productId:id})).then(r=>r);
+  let r;try {await entered;assert.equal((await get('/operations/recover-in-progress')).status,404);}
+  finally {unlock();r=await pending;StockService.prototype.move=original;}
+  assert.equal(r.status,201);
+  const result=await get('/operations/recover-in-progress');assert.equal(result.body.result.id,r.body.id);
+  assert.equal((await post('/movements','recover-in-progress',movement({productId:id}))).body.id,r.body.id);
+  assert.equal((await get('/products/'+id+'/balances')).body.total,'2.000');
+});
+
+
+test('cliente PHP atual consome backend real: vazio, cadastro zero, entrada, replay e falhas', async (t) => {
+  const fs=require('node:fs'),path=require('node:path');const {spawn,spawnSync}=require('node:child_process');
+  const php=process.env.PHP_BINARY||(process.platform==='win32'?path.resolve('work/php-runtime/bin/php.exe'):'php');
+  if(process.platform==='win32'&&!fs.existsSync(php))return t.skip('PHP local indisponível; use PHP_BINARY/PHP_EXTENSION_DIR');
+  const ext=process.env.PHP_EXTENSION_DIR||(process.platform==='win32'?path.resolve('work/php-runtime/bin/ext'):null);
+  const phpArgs=ext?['-d','extension_dir='+ext,'-d','extension=curl']:[];
+  const support=spawnSync(php,[...phpArgs,'-r',"exit(extension_loaded('curl')?0:2);"],{windowsHide:true,timeout:10000});
+  if(support.error?.code==='ENOENT'&&!process.env.PHP_BINARY)return t.skip('PHP não disponível neste ambiente; contrato PHP exige runtime local');
+  if(support.status===2)return t.skip('PHP/cURL indisponível neste ambiente');
+  assert.equal(support.status,0,'Runtime PHP configurado deve funcionar');
+  const invoke=mode=>new Promise((resolve,reject)=>{
+    const args=[...phpArgs];
+    args.push('tests/glpi-api-contract.php');
+    const child=spawn(php,args,{stdio:['pipe','pipe','pipe'],windowsHide:true});let out='',err='';
+    child.stdout.on('data',b=>out+=b);child.stderr.on('data',b=>err+=b);
+    child.on('error',reject);child.on('exit',code=>code===0?resolve(out):reject(new Error('Contrato PHP falhou: '+err+out)));
+    child.stdin.end(JSON.stringify({url:'http://127.0.0.1:'+app.getHttpServer().address().port+root,token,locationId:a,mode}));
+  });
+  process.env.INTEGRATION_ENABLED='true';assert.match(await invoke('normal'),/OK/);
+  try {process.env.INTEGRATION_ENABLED='false';assert.match(await invoke('disabled'),/OK/);}
+  finally {process.env.INTEGRATION_ENABLED='true';}
 });

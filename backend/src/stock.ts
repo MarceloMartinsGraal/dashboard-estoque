@@ -278,9 +278,9 @@ export class StockService {
       return m;
     });
   }
-  async balances(product: string) {
+  async balances(product: string, client: Pick<PoolClient, 'query'> = this.db.pool) {
     validate(uuid, product);
-    const result = await this.db.pool.query(
+    const result = await client.query(
       'SELECT a.id,a.name,SUM(l.delta)::text AS quantity FROM ledger l JOIN movements m ON m.id=l.movement_id JOIN locations a ON a.id=l.location_id WHERE m.product_id=$1 GROUP BY a.id ORDER BY a.name',
       [product],
     );

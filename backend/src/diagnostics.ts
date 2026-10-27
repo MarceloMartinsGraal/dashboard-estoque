@@ -30,7 +30,7 @@ const category = (status: number) => {
   if (status === 429) return 'rate_limit';
   return 'validation';
 };
-// Identificador interno: não reflete entrada do cliente nem altera o contrato HTTP.
+// Identificador gerado pelo servidor, compartilhado entre resposta e log.
 // Nunca registrar URL, parâmetros, headers, corpo, mensagens SQL ou stack.
 export function requestDiagnostics(
   req: Request,
@@ -39,6 +39,7 @@ export function requestDiagnostics(
 ) {
   const requestId = randomUUID();
   res.locals.requestId = requestId;
+  res.setHeader('X-Request-Id',requestId);
   res.once('finish', () => {
     const status = res.statusCode;
     if (status < 400) return;
