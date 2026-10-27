@@ -224,3 +224,8 @@ Consulte [configuração automática](docs/configuracao-automatica.md) para prep
 ## API e integração: revisão de 27/10/2026
 
 Consulte o [diagnóstico, arquitetura e atualização/recuperação](docs/integracoes/api-reconstrucao.md), o [inventário de endpoints e consumidores](docs/integracoes/api-inventario.md) e o [OpenAPI canônico](docs/integracoes/integration-v1.openapi.json). Reconstrução incremental compatível da integração; sem migração nova ou mudança do plugin0.1.8. Testar em banco novo loopback terminado em `_test`: configurar `TEST_DATABASE_URL` e executar `npm test`. A suíte confere respostas v1 contra o OpenAPI e, havendo PHP/cURL local, testa o cliente PHP real contra backend local. Use `PHP_BINARY` e, se necessário, `PHP_EXTENSION_DIR` para o runtime já disponível; nenhuma dependência nova precisa ser instalada. Homologação em GLPI/Ubuntu é uma etapa separada autorizada.
+
+
+## Notas fiscais
+
+A aba **Notas fiscais** armazena PDFs privados de até20MiB, avulsos ou vinculados a um produto, sem alterar estoque. Também aparece nos detalhes do produto (botão Armários). Requer migração006 e volume dedicado `invoices` montado na API; no desenvolvimento nativo use `INVOICE_STORAGE_DIR`. Consulte [uso, endpoints, configuração, integridade e backup coordenado](docs/notas-fiscais.md) e [verificações e pendências](docs/notas-fiscais-verificacao.md). Backup só do PostgreSQL não inclui os documentos.

@@ -572,3 +572,14 @@ td {
     gap: 12px;
   }
 }
+
+/* Biblioteca documental: usa cores e controles Graal existentes. */
+.invoice-filters { display:grid; gap:16px; margin:20px 0; }
+.invoice-picker { border:1px solid var(--line); border-radius:8px; padding:12px; min-width:0; }
+.invoice-picker[hidden] { display:none; }
+.invoice-picker article { border-top:1px solid var(--line); padding:8px 0; overflow-wrap:anywhere; }
+.invoice-actions { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+.invoice-link { color:var(--brand-gold-text); text-decoration:underline; padding:6px 0; }
+.invoice-picker p { overflow-wrap:anywhere; }
+
+.invoice-picker label[hidden] { display:none; }

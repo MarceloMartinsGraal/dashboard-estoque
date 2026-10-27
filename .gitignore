@@ -12,3 +12,7 @@ coverage/
 .setup-graal.lock
 __pycache__/
 *.pyc
+
+# Documentos privados não entram no Git/contexto Docker.
+var/invoices/
+*.[pP][dD][fF]

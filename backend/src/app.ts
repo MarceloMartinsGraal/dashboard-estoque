@@ -1,3 +1,6 @@
+import { InvoiceController } from './invoices/controller';
+import { InvoiceService } from './invoices/service';
+import { InvoiceStorage } from './invoices/storage';
 import { requestDiagnostics } from './diagnostics';
 import { SafeErrors } from './http-errors';
 import 'reflect-metadata';
@@ -61,8 +64,11 @@ class ImportModule {}
   providers: [IntegrationService, IntegrationGuard],
 })
 class IntegrationModule {}
+@Module({imports:[CatalogModule],controllers:[InvoiceController],providers:[InvoiceService,InvoiceStorage]})
+class InvoiceModule {}
 @Module({
   imports: [
+    InvoiceModule,
     DatabaseModule,
     AuthModule,
     StockModule,

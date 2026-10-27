@@ -33,6 +33,8 @@ services:
     depends_on: {db: {condition: service_healthy}}
     restart: 'no'
   api:
+    volumes:
+      - invoices:/var/lib/graal/invoices
     build: {context: ., target: runtime}
     init: true
     restart: unless-stopped
@@ -62,6 +64,7 @@ services:
     logging: {driver: json-file, options: {max-size: 10m, max-file: '3'}}
 volumes:
   pgdata:
+  invoices:
 networks:
   public:
   internal: {internal: true}

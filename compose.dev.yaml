@@ -29,6 +29,8 @@ services:
     depends_on: {db: {condition: service_healthy}}
     restart: 'no'
   api:
+    volumes:
+      - invoices:/var/lib/graal/invoices
     build: {context: ., target: runtime}
     init: true
     environment: *api-env
@@ -51,3 +53,4 @@ services:
     depends_on: {api: {condition: service_healthy}}
 volumes:
   pgdata:
+  invoices:

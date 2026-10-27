@@ -63,3 +63,8 @@ Este inventário descreve os formatos existentes; não os uniformiza silenciosam
 - `bootstrap` e `migrate`: CLIs locais/administrativas, não endpoints. Cinco migrações existentes e seus checksums preservados.
 - Plugin `ajax/endpoint.php`: POST local GLPI com sessão, acesso ao chamado e CSRF. search/product_options/matches/balances/locations/history chamam API; prepare/execute/recover orquestram intenções; intent/intents consultam armazenamento GLPI. `GlpiIntentStore::recent` usa somente tabelas locais GLPI.
 - Assets JS/CSS/SVG: servidos pelo GLPI; não são endpoints do dashboard. Falhas instaladas de cache, empacotamento, permissões de arquivos ou URLs precisam de evidência própria.
+
+
+## Acréscimo documental — Notas fiscais
+
+Rotas nativas autenticadas `/api/invoices` (GET listagem, POST binário), `/api/invoices/:id` (GET metadados, POST revisão), `/api/invoices/:id/file` (GET inline/attachment), `/api/invoices/products` e `/api/invoices/products/:id` (GET seleção completa). Sessão/CSRF e parâmetros/erros detalhados em [Notas fiscais](../notas-fiscais.md). Esses endpoints não fazem parte da integração v1, não aceitam a credencial do plugin e não alteram seu contrato OpenAPI.

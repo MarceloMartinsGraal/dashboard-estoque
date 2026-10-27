@@ -1,3 +1,4 @@
+import { invoiceUi } from './invoices';
 import './style.css';
 import { api } from './api';
 import { productMatchReview } from './product-matches';
@@ -219,6 +220,7 @@ const routes: Record<string, string> = {
   products: 'Produtos',
   history: 'Histórico',
   locations: 'Armários',
+  invoices: 'Notas fiscais',
   imports: 'Importação',
   catalog: 'Cadastros',
   employees: 'Funcionários',
@@ -310,6 +312,7 @@ async function shell() {
     'Produtos',
     'Histórico',
     'Armários',
+    'Notas fiscais',
     'Importação',
     'Cadastros',
     ...(user!.manages_accounts ? ['Funcionários'] : []),
@@ -344,6 +347,7 @@ async function navigate(page: string, push = true) {
     else if (page === 'Produtos') await products();
     else if (page === 'Histórico') await history();
     else if (page === 'Armários') await locationsPage();
+    else if (page === 'Notas fiscais') await invoiceUi({el,button,dialog,table,message}).page(main,()=>revision===navigationVersion);
     else if (page === 'Importação') await imports();
     else if (page === 'Cadastros') await masterData();
     else await employees();
@@ -620,6 +624,7 @@ async function balances(p: Row) {
     ]),
     button('Fechar', () => d.close()),
   );
+  invoiceUi({el,button,dialog,table,message}).productSection(d,p,()=>{d.close();window.history.pushState(null,'',location.pathname+'?view=invoices&productId='+encodeURIComponent(p.id));void navigate('Notas fiscais',false);});
 }
 
 function locationName(l: Row) {

@@ -9,6 +9,7 @@ const databaseCode = (error: unknown): string | undefined => {
 };
 const operation = (path: string) => {
   if (path.startsWith('/api/integration/')) return 'integracao';
+  if (path.startsWith('/api/invoices')) return 'documentos';
   if (path.startsWith('/api/imports')) return 'importacao';
   if (
     path.startsWith('/api/movements') ||
