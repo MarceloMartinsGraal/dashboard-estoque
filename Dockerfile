@@ -17,6 +17,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
 COPY --from=build --chown=node:node /app/dist/backend ./dist/backend
 COPY --from=build --chown=node:node /app/backend/migrations ./backend/migrations
+COPY --chown=node:node scripts/provision-integration.cjs ./scripts/provision-integration.cjs
 USER node
 EXPOSE 3000
 CMD ["node", "dist/backend/main.js"]

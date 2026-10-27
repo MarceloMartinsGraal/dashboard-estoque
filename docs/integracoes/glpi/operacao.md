@@ -156,3 +156,7 @@ Armário só aparece no dashboard na edição de produto com abertura e não int
 O alerta de similaridade continua antes de preparar e o backend revalida antes de salvar. É um produto diferente só aparece quando há candidatos; a justificativa adicional só aparece/é exigida quando essa confirmação é marcada. Usar produto existente evita novo cadastro. Produto inativo não é reativado automaticamente; eventual revisão de situação segue o dashboard. Erro de validação do cadastro fica separado da lista de candidatos, mantendo-a visível.
 
 Cadastro não cria quantidade. Novo produto da integração continua com base zero e primeira entrada separada, revisada e confirmada. Falha/reenvio da entrada não repete cadastro. Produto criado inativo não pode ser movimentado enquanto sua situação não for revista pelo fluxo existente.
+
+## Configuração assistida em homologação (plugin 0.1.8)
+
+O script scripts/configurar-dashboard.sh prepara HTTP por IP privado e executa configurar-glpi.sh por SSH. Consulte docs/configuracao-automatica.md no repositório do dashboard. HTTP privado exige deployment_mode=homologacao e private_http explícito; produção mantém HTTPS. O ZIP inclui helper CLI protegido em tools/configure-cli.php. Não usar o arquivo .env inteiro como payload.

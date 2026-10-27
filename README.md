@@ -215,3 +215,7 @@ Plugin0.1.5: confirmação independente das leituras, erros locais por seção e
 Plugin0.1.6: corrige ordenação da consulta intents no construtor SQL do GLPI11.0.5; lista vazia é sucesso, falhas reais permanecem visíveis. Atualização somente do plugin, sem migração; ver [procedimento e limitações](docs/integracoes/glpi/operacao.md).
 
 Plugin0.1.7: busca inicial automática de ativos com saldo operacional positivo e opção Incluir produtos sem saldo; cadastro com Descrição/Categoria/Subcategoria/Situação igual ao Novo produto do dashboard. Exige atualização do backend, sem migração. Consulte [atualização e verificações](docs/integracoes/glpi/operacao.md).
+
+## Configuração assistida por IP e SSH
+
+Consulte [configuração automática](docs/configuracao-automatica.md) para preparar o dashboard de homologação e configurar o GLPI por SSH. Produção continua exigindo HTTPS.

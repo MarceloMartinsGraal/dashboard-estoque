@@ -10,7 +10,7 @@ if not version:
 out=base/'dist'/('estoquegraal-'+version.group(1)+'.zip')
 out.parent.mkdir(parents=True,exist_ok=True)
 files={n:(source/n).read_bytes() for n in ['setup.php','hook.php','README.md','LICENSE']}
-for folder in ['lib','inc','front','ajax','public']:
+for folder in ['lib','inc','front','ajax','public','tools']:
     for p in (source/folder).rglob('*'):
         if p.is_file(): files[p.relative_to(source).as_posix()]=p.read_bytes()
 for required in ['public/js/core.js','public/js/app.js','public/css/plugin.css','public/pics/logo.svg']:

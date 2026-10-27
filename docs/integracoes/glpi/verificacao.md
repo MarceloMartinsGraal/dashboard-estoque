@@ -159,3 +159,7 @@ node scripts/test-glpi-plugin-browser.cjs
 ```
 
 O segundo comando requer PHP/cURL/mbstring no PATH; PHP_BINARY/PHP_EXTENSION_DIR permitem indicar runtime portátil. Regressões PHP antigas internas ao plugin não estavam presentes no checkout atual (patch anterior); não foram restauradas nem declaradas executadas. Mantida a estrutura/correções do patch atual e adicionados testes na pasta tests/ do repositório. Lint/build e sintaxe verificados nesta entrega. Revisão independente confirmou filtro antes da paginação e contratos opcionais; recomendação de carga inicial automática aplicada e testada. Homologação real no GLPI e atualização do backend continuam pendentes de execução pelo administrador.
+
+## Configuração assistida 0.1.8
+
+Novos testes locais cobrem HTTP privado opt-in, formulário e orquestração simulada. Consulte docs/configuracao-automatica-verificacao.md no repositório. Instalação no GLPI real e persistência cifrada ainda não foram homologadas nesta entrega.

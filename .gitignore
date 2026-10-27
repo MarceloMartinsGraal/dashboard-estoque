@@ -6,3 +6,9 @@ dist/
 work/
 coverage/
 *.log
+
+# Configuração e credenciais locais do instalador
+.local-setup/
+.setup-graal.lock
+__pycache__/
+*.pyc

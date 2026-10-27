@@ -6,11 +6,21 @@ final class Settings {
     public readonly int $timeout;
     public readonly int $connectTimeout;
     private string $token;
+    public static function privateIPv4(string $host):bool {
+        if(filter_var($host,FILTER_VALIDATE_IP,FILTER_FLAG_IPV4)===false)return false;
+        $p=array_map('intval',explode('.',$host));
+        return $p[0]===10||($p[0]===172&&$p[1]>=16&&$p[1]<=31)||($p[0]===192&&$p[1]===168);
+    }
     public function __construct(array $values) {
-        if(empty($values['enabled'])) throw new PluginError('Integração inativa. Solicite configuração ao administrador.',503);
+        if(empty($values['enabled']))throw new PluginError('Integração inativa. Solicite configuração ao administrador.',503);
         $url=rtrim((string)($values['base_url']??''),'/');$parts=parse_url($url);
-        $local=!empty($values['local_http']) && in_array(strtolower($parts['host']??''),['localhost','127.0.0.1','[::1]'],true);
-        if(!$parts || !in_array($parts['scheme']??'', $local?['https','http']:['https'],true) || empty($parts['host']) || isset($parts['user'],$parts['pass']) || isset($parts['user']) || isset($parts['query']) || isset($parts['fragment']) || ($parts['path']??'')!=='/api/integration/v1') throw new PluginError('URL inválida. Use HTTPS e o caminho /api/integration/v1; HTTP apenas em loopback de desenvolvimento.');
+        $host=strtolower($parts['host']??'');
+        $mode=$values['deployment_mode']??'production';
+        if(!in_array($mode,['production','homologacao'],true))throw new PluginError('Modo de implantação inválido.');
+        if(!empty($values['private_http'])&&$mode!=='homologacao')throw new PluginError('HTTP privado exige modo homologação. Produção requer HTTPS.');
+        $local=!empty($values['local_http'])&&in_array($host,['localhost','127.0.0.1','[::1]'],true);
+        $private=!empty($values['private_http'])&&$mode==='homologacao'&&self::privateIPv4($host);
+        if(!$parts||!in_array($parts['scheme']??'',($local||$private)?['https','http']:['https'],true)||empty($host)||isset($parts['user'])||isset($parts['pass'])||isset($parts['query'])||isset($parts['fragment'])||($parts['path']??'')!=='/api/integration/v1')throw new PluginError('URL inválida. Use HTTPS; HTTP privado exige homologação explícita e IPv4 RFC1918.');
         $instance=(string)($values['instance_id']??'');
         if(!preg_match('/^[A-Za-z0-9._:-]{1,120}$/D',$instance))throw new PluginError('Identificador da instância inválido.');
         $token=(string)($values['token']??'');
