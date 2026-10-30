@@ -1,3 +1,11 @@
+# Atualização0.1.10 — diagnóstico do configurador
+
+O helper CLI informa etapa/status sem mensagens remotas ou credenciais e oferece probe somente de leitura. O assistente atualizado usa `sudo bash scripts/assistente-graal.sh --diagnosticar`, com os arquivos do configurador e fonte atuais. Preserva token, instância e vínculo; não grava configuração durante probe. Falha instalada ainda exige esse resultado: ativação manual funcionou, mas não comprova sucesso das consultas/aplicação posteriores. Nenhuma migração ou alteração de estoque/backend nesta atualização. Procedimento completo: docs/assistente-servidor.md, seção Diagnóstico.
+
+Testes locais: 60 Python; contrato PHP real com cURL e GLPI simulado, probe sem persistência e falha403 sanitizada. GLPI/Ubuntu reais não acessados.
+
+---
+
 # Verificação da entrega0.1.9
 
 Configurador Python testado com fixtures para modos local/online, preservação de configuração, ausência de SSH no modo local e payload separado da origem do navegador. Helper PHP real foi executado com cURL e Kernel/Config/DB GLPI simulados: persistência de local_http em loopback, leitura da API, rejeição HTTP público e flags inválidos. Não é teste de GLPI/MySQL real. O contrato do proxy foi revisado estaticamente, não executado com Nginx/Docker. Resultados completos no repositório: docs/configuracao-local-online-verificacao.md. Registros anteriores abaixo são históricos e não homologam esta versão instalada.

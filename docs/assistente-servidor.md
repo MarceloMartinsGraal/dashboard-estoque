@@ -60,3 +60,19 @@ Passaram 56 testes Python: 25 do assistente e 31 de regressão do configurador e
 Ainda é necessário homologar no Ubuntu: Docker Compose, nginx -t/apache2ctl configtest reais, emissão ACME, timer/hook, permissões PHP, HTTPS de ponta a ponta, reinício e integração GLPI. O assistente verifica health HTTPS com validação TLS e JSON status=ok no domínio esperado; isso não prova autorização/vínculo nem permite declarar operações de estoque homologadas.
 
 O plugin continua 0.1.9 e o backend não mudou nesta tarefa. Não há nova migração ou necessidade de gerar outro ZIP por causa do assistente; o pacote é construído do fonte atual pelo instalador existente.
+
+## Diagnóstico da instalação/configuração — atualização0.1.10
+
+Se a credencial já foi criada/preservada e a instalação falha, atualize os arquivos do configurador e fonte do plugin antes de executar:
+
+```bash
+sudo bash scripts/assistente-graal.sh --diagnosticar
+```
+
+Usa o .env e o token protegidos existentes. Não inicia/recria containers, emite credenciais, instala/ativa/desativa plugin, limpa cache ou grava configuração do GLPI. Empacota o fonte atual e usa código temporário com --root apontando ao GLPI real; a inicialização do Kernel pode produzir logs/cache normais de leitura. O diretório temporário é removido ao terminar. Não consulta apenas o helper antigo instalado.
+
+O resultado informa a etapa controlada (resources/kernel/security/read-config/payload-validation/api-read/persist/verify-persist/commit ou comandos de instalação) e status HTTP quando fornecido pelo cliente da API. Não imprime o stderr bruto, mensagens remotas, corpo, Authorization, token, senha ou backup. Exemplos: api-read/401 indica recusa de credencial; api-read/403 indica recusa de autorização; api-read/504 indica falha de transporte/timeout; não rotacione credenciais ou altere permissões só com base em mensagem genérica.
+
+Depois de resolver a causa identificada, o comando normal retoma usando a credencial existente. Não repita a instalação como diagnóstico. Backend permanece inalterado, plugin/helper agora0.1.10, sem nova migração. Uma ativação manual bem-sucedida não prova sucesso das etapas de backup/aplicação/verificação/cache; o instalador pode desativar o plugin ao falhar depois da ativação.
+
+Verificação local da atualização: 60 testes Python e contrato PHP real/cURL com API sintética (probe sem persistência, resposta403 identificada e token ausente do diagnóstico). GLPI Kernel/Config/DB e comandos de host são fixtures; causa instalada e homologação Ubuntu continuam pendentes. Não foi acessado servidor.

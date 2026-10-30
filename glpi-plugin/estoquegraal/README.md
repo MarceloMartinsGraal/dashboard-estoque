@@ -1,4 +1,4 @@
-# Estoque Graal 0.1.9
+# Estoque Graal 0.1.10
 
 Plugin desenvolvido para posterior instalação e homologação. Alvo exclusivo: **GLPI 11.0.5** (máximo 11.0.6 exclusivo), PHP 8.2+ de 64 bits, extensões curl, json e sodium, além dos requisitos normais do GLPI. Não foi instalado nem testado em GLPI/MySQL em execução.
 

@@ -223,4 +223,16 @@ class AssistantTests(unittest.TestCase):
                 ag.run(root,argparse.Namespace(reconfigurar=False));self.assertEqual(before,(root/".env").read_bytes())
                 self.assertEqual(start.call_count,2);self.assertEqual(integrate.call_count,2)
 
+    def test_diagnose_does_not_start_docker_provision_or_rewrite_env(self):
+        import argparse
+        with tempfile.TemporaryDirectory() as tmp:
+            root=pathlib.Path(tmp);c=self.config();ag.save_state(root,c)
+            envfile=root/".env";envfile.write_text("INTEGRATION_TOKEN_FILE=.local-setup/integration-token\n")
+            (root/".local-setup/integration-token").write_text("synthetic-token")
+            before=envfile.read_bytes()
+            with patch.object(ag.sg,"configure_local") as local,patch.object(ag.sg,"main") as start,patch.object(ag.sg,"provision") as provision,patch.object(ag,"prepare_env") as prepare:
+                ag.run(root,argparse.Namespace(diagnosticar=True,reconfigurar=False))
+                start.assert_not_called();provision.assert_not_called();prepare.assert_not_called()
+                self.assertTrue(local.call_args.kwargs["diagnose"]);self.assertEqual(envfile.read_bytes(),before)
+
 if __name__=="__main__":unittest.main()

@@ -1,3 +1,11 @@
+# Atualização0.1.10 — diagnóstico do configurador
+
+O helper CLI informa etapa/status sem mensagens remotas ou credenciais e oferece probe somente de leitura. O assistente atualizado usa `sudo bash scripts/assistente-graal.sh --diagnosticar`, com os arquivos do configurador e fonte atuais. Preserva token, instância e vínculo; não grava configuração durante probe. Falha instalada ainda exige esse resultado: ativação manual funcionou, mas não comprova sucesso das consultas/aplicação posteriores. Nenhuma migração ou alteração de estoque/backend nesta atualização. Procedimento completo: docs/assistente-servidor.md, seção Diagnóstico.
+
+Testes locais: 60 Python; contrato PHP real com cURL e GLPI simulado, probe sem persistência e falha403 sanitizada. GLPI/Ubuntu reais não acessados.
+
+---
+
 # Atualização0.1.9 — mesmo servidor e HTTPS
 
 O helper CLI aceita local_http opcional para API em127.0.0.1/localhost/::1 do mesmo host e confirma os flags persistidos. Acesso público segue HTTPS. Usar essa opção apenas quando o processoPHP e a API alcançável estão no mesmo host; não usar localhost de outro servidor/container. O configurador do repositório tem --glpi-local, --mode local|online, --public-origin e --api-url; não exige SSH no modo local. No online compartilhado, compose.same-host.yaml publica só127.0.0.1:8080 atrás do proxy existente, sem ocupar80/443 do GLPI. O proxy do host deve sobrescrever X-Graal-Client-IP com o IP real da conexão para preservar limite de login por cliente.

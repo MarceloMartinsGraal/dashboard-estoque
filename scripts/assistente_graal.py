@@ -457,17 +457,30 @@ def check_https(c):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--reconfigurar", action="store_true", help="Rever escolhas e responsável, com backup do .env")
+    parser.add_argument("--diagnosticar", action="store_true", help="Somente leitura autenticada da API, sem reinstalar plugin/provisionar/alterar configuração")
     args = parser.parse_args(argv)
     sg.need(sys.platform.startswith("linux") and os.geteuid() == 0, "Execute no Ubuntu com sudo bash scripts/assistente-graal.sh.")
     os.umask(0o077)
-    sg.require_tools(["ip", "docker", "bash", "php"])
-    check_docker()
+    sg.require_tools(["bash", "php"] if args.diagnosticar else ["ip", "docker", "bash", "php"])
+    if not args.diagnosticar: check_docker()
     root = sg.ROOT
     with host_lock(), assistant_lock(root):
         run(root, args)
 
 
 def run(root, args):
+    if getattr(args,"diagnosticar",False):
+        with sg.setup_lock(root):
+            c=load_state(root)
+            sg.need(c,"Assistente ainda não configurado; diagnóstico exige estado existente.")
+            path=root/".env"
+            sg.need(not path.is_symlink(),".env não pode ser link.")
+            env=sg.parse_env(path.read_text(encoding="utf-8"))
+            token_path=root/env["INTEGRATION_TOKEN_FILE"]
+            sg.need(not token_path.is_symlink() and token_path.resolve().is_relative_to((root/".local-setup").resolve()),"Arquivo de credencial inválido.")
+            sg.need(token_path.is_file(),"Credencial ainda não foi criada; diagnóstico não cria nem rotaciona token.")
+            sg.configure_local(root,env,token_path.read_text().strip(),diagnose=True)
+        return
     # Dedicated lock also prevents two assistants from mutating a host proxy together.
     with sg.setup_lock(root):
         c = load_state(root)

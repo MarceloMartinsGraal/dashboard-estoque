@@ -266,4 +266,20 @@ class SetupTests(unittest.TestCase):
         self.assertIn('if ($graal_client_ip = "") { return 503; }',config)
         self.assertIn("X-Forwarded-For $graal_client_ip",config);self.assertNotIn("X-Forwarded-For $remote_addr",config)
 
+    def test_child_diagnostic_is_preserved_but_raw_secret_is_discarded(self):
+        raw='token-secreto\nGRAAL_DIAGNOSTIC {"phase":"api-read","status":403,"exceptionType":"EstoqueGraal\\\\PluginError"}\n'
+        failure=sg.subprocess.CalledProcessError(1,["bash"],stderr=raw)
+        with patch.object(sg.subprocess,"run",side_effect=failure):
+            with self.assertRaises(sg.SetupError) as caught:sg.run_command(["bash","fixture"])
+        self.assertIn("api-read",str(caught.exception));self.assertIn("403",str(caught.exception));self.assertNotIn("token-secreto",str(caught.exception))
+    def test_untrusted_diagnostic_cannot_inject_a_secret(self):
+        raw='GRAAL_DIAGNOSTIC {"phase":"token-secreto","status":403,"message":"token-secreto"}\n'
+        with patch.object(sg.subprocess,"run",side_effect=sg.subprocess.CalledProcessError(1,["bash"],stderr=raw)):
+            with self.assertRaises(sg.SetupError) as caught:sg.run_command(["bash"])
+        self.assertNotIn("token-secreto",str(caught.exception))
+
+    def test_invalid_diagnostic_phase_types_are_ignored(self):
+        for phase in [[],{},None,True,42]:
+            self.assertIsNone(sg.safe_diagnostic("GRAAL_DIAGNOSTIC "+json.dumps({"phase":phase})))
+
 if __name__=="__main__":unittest.main()
