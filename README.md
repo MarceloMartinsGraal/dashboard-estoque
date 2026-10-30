@@ -232,3 +232,8 @@ A aba **Notas fiscais** armazena PDFs privados de até20MiB, avulsos ou vinculad
 ## Primeiro acesso e integração — atualização30/10/2026
 
 Aplicar a migração007 antes de iniciar a versão nova. Em banco vazio, entrar com admin/admin, concluir a troca obrigatória e entrar novamente; com qualquer funcionário existente não há criação/reset automático. A API de integração já vem habilitada, continua exigindo Bearer/escopos/vínculos e respeita false explícito em ambientes antigos. Veja [fluxo, configuração, atualização e risco da credencial temporária](docs/primeiro-acesso.md) e [verificações](docs/primeiro-acesso-verificacao.md). Nenhum servidor ou .env real foi atualizado pelo agente.
+
+
+## Dashboard e GLPI no mesmo servidor Oracle
+
+O configurador Ubuntu aceita `--glpi-local` (sem SSH para o próprio servidor), `--mode local` para rede privada e `--mode online` para HTTPS no proxy existente. `PUBLIC_ORIGIN` permanece a origem do navegador; `GLPI_API_BASE_URL` é independente para o PHP. Online usa `compose.same-host.yaml` com dashboard só em127.0.0.1:8080, preservando80/443 do GLPI. Veja [comandos, proxy obrigatório e transição sem perder volumes](docs/configuracao-local-online.md). Plugin atualizado0.1.9; gerar ZIP com `python scripts/package-glpi-plugin.py`. Nenhuma configuração de servidor foi aplicada nesta entrega.

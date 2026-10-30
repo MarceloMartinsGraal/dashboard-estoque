@@ -196,4 +196,74 @@ class SetupTests(unittest.TestCase):
                 with self.assertRaisesRegex(sg.SetupError,"primeiro acesso"):sg.provision(pathlib.Path(tmp),{"COMPOSE_PROJECT_NAME":"teste"},sg.arguments(["dashboard"]))
                 ask.assert_not_called();self.assertEqual(run.call_count,1)
 
+    def test_api_url_independent_from_browser_origin(self):
+        token="11111111-1111-4111-8111-111111111111."+"a"*64
+        env={"PUBLIC_ORIGIN":"https://dashboard.exemplo.com","GLPI_API_BASE_URL":"http://127.0.0.1:8080/api/integration/v1","GLPI_INSTANCE_ID":"same-host","GLPI_CONNECTION":"local"}
+        p=sg.make_payload(env,token)
+        self.assertEqual(p["base_url"],env["GLPI_API_BASE_URL"]);self.assertTrue(p["local_http"]);self.assertFalse(p["private_http"]);self.assertEqual(p["deployment_mode"],"production")
+        with self.assertRaises(sg.SetupError):sg.make_payload(dict(env,GLPI_CONNECTION="ssh"),token)
+        with self.assertRaises(sg.SetupError):sg.validate_payload(dict(p,base_url="http://8.8.8.8/api/integration/v1"))
+
+    def test_online_same_host_config_and_compose(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=pathlib.Path(tmp);args=sg.arguments(["dashboard","--configure-only","--mode","online","--public-origin","https://dashboard.exemplo.com","--glpi-local"])
+            env=sg.configure_env(root,args,[])
+            self.assertEqual(env["PUBLIC_ORIGIN"],"https://dashboard.exemplo.com");self.assertEqual(env["NODE_ENV"],"production");self.assertEqual(env["DASHBOARD_IP"],"127.0.0.1");self.assertEqual(env["GLPI_CONNECTION"],"local")
+            self.assertEqual(env["GLPI_API_BASE_URL"],"http://127.0.0.1:8080/api/integration/v1")
+            self.assertIn("compose.same-host.yaml"," ".join(sg.compose_command(root,env,["ps"])))
+            self.assertEqual(sg.configure_env(root,args,[]),env)
+
+    def test_online_rejects_http_before_writing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=pathlib.Path(tmp);args=sg.arguments(["dashboard","--configure-only","--mode","online","--public-origin","http://8.8.8.8","--glpi-local"])
+            with self.assertRaises(sg.SetupError):sg.configure_env(root,args,[])
+            self.assertFalse((root/".env").exists())
+
+    def test_private_mode_keeps_ssh_legacy_and_separate_api(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=pathlib.Path(tmp);args=sg.arguments(["dashboard","--configure-only","--ip","192.168.1.5","--api-url","http://192.168.1.5:8080/api/integration/v1"])
+            env=sg.configure_env(root,args,["192.168.1.5"]);self.assertEqual(env["GLPI_CONNECTION"],"ssh")
+            original=(root/".env").read_bytes()
+            changed=sg.arguments(["dashboard","--configure-only","--mode","online","--public-origin","https://dashboard.exemplo.com","--glpi-local"])
+            with self.assertRaises(sg.SetupError):sg.configure_env(root,changed,["192.168.1.5"])
+            self.assertEqual((root/".env").read_bytes(),original)
+
+    def test_same_host_install_uses_stdin_without_ssh(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=pathlib.Path(tmp);plugin=root/"glpi-plugin/estoquegraal";plugin.mkdir(parents=True);(plugin/"setup.php").write_text("define('PLUGIN_ESTOQUEGRAAL_VERSION','0.1.9');")
+            (root/"dist").mkdir();package=root/"dist/estoquegraal-0.1.9.zip"
+            with zipfile.ZipFile(package,"w") as z:
+                for n in ("setup.php","hook.php","tools/configure-cli.php","public/js/app.js","public/css/plugin.css","public/pics/logo.svg"):z.writestr("estoquegraal/"+n,"fixture")
+            env={"PUBLIC_ORIGIN":"http://192.168.1.5:8080","GLPI_API_BASE_URL":"http://192.168.1.5:8080/api/integration/v1","GLPI_CONNECTION":"local","GLPI_INSTANCE_ID":"same-host","GLPI_DIR":"/var/www/glpi","GLPI_WEB_USER":"www-data"}
+            token="11111111-1111-4111-8111-111111111111."+"a"*64;calls=[]
+            def fake(cmd,**kw):
+                calls.append((cmd,kw));return sg.subprocess.CompletedProcess(cmd,0,'{"ok":true,"backup":"/var/backups/estoque-graal/test"}' if kw.get("input_text") else '',"")
+            with patch.object(sg,"require_tools"),patch.object(sg,"run_command",side_effect=fake),patch.object(sg.os,"geteuid",return_value=1000,create=True):sg.configure_local(root,env,token)
+            self.assertFalse(any(c[0] in ("ssh","scp") for c,k in calls));install=[(c,k) for c,k in calls if k.get("input_text")];self.assertEqual(len(install),1);self.assertEqual(install[0][0][:2],["sudo","-n"])
+            self.assertNotIn(token," ".join(str(x) for c,k in calls for x in c));self.assertEqual(json.loads(install[0][1]["input_text"])["token"],token)
+
+    def test_main_local_never_asks_ssh_or_calls_remote(self):
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(sg.sys,"platform","linux"),patch.object(sg,"ROOT",pathlib.Path(tmp)),patch.object(sg,"require_tools"),patch.object(sg,"discover_ips",return_value=["10.0.0.12"]),patch.object(sg,"run_command",return_value=SimpleNamespace(stdout="unix:///var/run/docker.sock")),patch.object(sg,"provision",return_value="synthetic-token") as provision,patch.object(sg,"configure_local") as local,patch.object(sg,"configure_remote") as remote,patch.object(sg,"ask") as ask:
+                sg.main(["dashboard","--glpi-local","--ip","10.0.0.12"])
+                self.assertEqual(provision.call_count,1);self.assertEqual(local.call_count,1);remote.assert_not_called();ask.assert_not_called()
+
+    def test_online_urls_reject_credentials_path_and_noncanonical_origin(self):
+        for origin in ["https://@dashboard.exemplo.com","https://dashboard.exemplo.com/subpath","https://dashboard.exemplo.com:443","https://Dashboard.exemplo.com","https://dashboard.exemplo.com/","https://dashboard.exemplo.com?secret=x"]:
+            with tempfile.TemporaryDirectory() as tmp:
+                root=pathlib.Path(tmp);args=sg.arguments(["dashboard","--configure-only","--mode","online","--public-origin",origin,"--glpi-local"])
+                with self.assertRaises(sg.SetupError):sg.configure_env(root,args,[])
+                self.assertFalse((root/".env").exists())
+
+    def test_same_host_proxy_manifest_contract(self):
+        # Conferência estática de artefatos, não substitui ensaio Nginx/Compose.
+        compose=(ROOT/"compose.same-host.yaml").read_text()
+        self.assertIn("127.0.0.1:${DASHBOARD_PORT:-8080}:80",compose)
+        self.assertNotIn("'80:80'",compose);self.assertNotIn("'443:443'",compose)
+        config=(ROOT/"infra/nginx.same-host.conf").read_text()
+        self.assertIn("limit_req_zone $graal_client_ip",config);self.assertNotIn("limit_req_zone $binary_remote_addr",config)
+        self.assertIn('if ($graal_client_ip = "") { return 503; }',config)
+        self.assertIn("X-Forwarded-For $graal_client_ip",config);self.assertNotIn("X-Forwarded-For $remote_addr",config)
+
 if __name__=="__main__":unittest.main()

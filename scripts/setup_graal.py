@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Homologação Ubuntu: orquestração sem dependências Python externas."""
+"""Dashboard/GLPI Ubuntu: rede privada ou HTTPS em servidor compartilhado."""
 import argparse, contextlib, datetime, hashlib, ipaddress, json, os, pathlib, re
 import secrets, shlex, shutil, socket, stat, subprocess, sys, tarfile, tempfile, zipfile
 ROOT=pathlib.Path(__file__).resolve().parents[1]
@@ -66,9 +66,11 @@ def choose_ip(available,explicit):
         need(explicit in available,"O IP escolhido não está atribuído à máquina.");return explicit
     need(len(available)==1,"IP privado ambíguo ou ausente. Informe --ip com endereço desta máquina.");return available[0]
 def arguments(argv=None):
-    p=argparse.ArgumentParser(description="Graal: homologação por IP e configuração GLPI via SSH.")
+    p=argparse.ArgumentParser(description="Graal Ubuntu: rede privada ou HTTPS, GLPI no host ou por SSH.")
     sub=p.add_subparsers(dest="action",required=True);d=sub.add_parser("dashboard")
     d.add_argument("--configure-only",action="store_true");d.add_argument("--skip-glpi",action="store_true")
+    d.add_argument("--mode",choices=["local","online"],help="local: HTTP privado; online: proxy HTTPS existente no servidor");d.add_argument("--public-origin");d.add_argument("--api-url")
+    d.add_argument("--glpi-connection",choices=["local","ssh"]);d.add_argument("--glpi-local",dest="glpi_connection",action="store_const",const="local",help="Instalar/configurar GLPI no próprio host, sem SSH")
     d.add_argument("--ip");d.add_argument("--port",type=int);d.add_argument("--project")
     d.add_argument("--glpi-host");d.add_argument("--glpi-user");d.add_argument("--glpi-port",type=int)
     d.add_argument("--ssh-key");d.add_argument("--glpi-dir");d.add_argument("--web-user");d.add_argument("--instance")
@@ -80,58 +82,88 @@ def arguments(argv=None):
     g.add_argument("--package",required=True);g.add_argument("--sha256",required=True)
     g.add_argument("--backup-dir",default="/var/backups/estoque-graal")
     return p.parse_args(argv)
+def parsed_url(value,api=False):
+    from urllib.parse import urlsplit
+    need(isinstance(value,str) and value and not re.search(r"\s|[\x00-\x1f\x7f]",value),"URL inválida.")
+    try:
+        u=urlsplit(value);port=u.port
+        need(u.scheme in ("http","https") and u.hostname and u.username is None and u.password is None and not u.query and not u.fragment,"URL inválida.")
+        need(u.path==("/api/integration/v1" if api else ""),"Use origem sem caminho/barra final; API exige /api/integration/v1.")
+        need(port is None or 1<=port<=65535,"Porta inválida.")
+        return u
+    except ValueError:raise SetupError("URL inválida.") from None
+
+def loopback_host(host):return host in ("localhost","127.0.0.1","::1")
+
 def configure_env(root,args,available):
     path=root/".env";need(not path.is_symlink(),".env não pode ser link simbólico.")
     old=path.read_text(encoding="utf-8") if path.exists() else "";env=parse_env(old);initial=dict(env);existing=bool(old)
-    need(not any(k.startswith("DOCKER_") for k in env),"Opções DOCKER_ no .env exigem remoção/revisão manual; não serão executadas.")
-    if existing and env.get("GRAAL_SETUP_MODE")!="homologacao":
+    need(not any(k.startswith("DOCKER_") for k in env),"Opções DOCKER_ no .env exigem revisão manual.")
+    mode=args.mode or ("online" if env.get("GRAAL_SETUP_MODE")=="production" else "local")
+    marker="production" if mode=="online" else "homologacao"
+    if existing and env.get("GRAAL_SETUP_MODE") not in ("homologacao","production"):
         need(args.adopt_env,".env não gerenciado: revise --adopt-env; arquivo preservado.")
-        need(env.get("NODE_ENV") in ("development","test"),"Não adotar configuração de produção.")
-        need(args.ip and args.project,"Adoção exige --ip e --project explícitos.")
+        need(args.project and (args.public_origin if mode=="online" else args.ip),"Adoção exige projeto e origem/IP explícitos.")
         need(all(env.get(k) for k in ("POSTGRES_PASSWORD","DB_APP_PASSWORD","SESSION_SECRET")),"Adoção exige segredos existentes; não serão regenerados.")
-    ip=choose_ip(available,args.ip or env.get("DASHBOARD_IP"));port=args.port or int(env.get("DASHBOARD_PORT","8080"))
-    need(1024<=port<=65535,"Porta deve estar entre 1024 e 65535.")
-    project=args.project or env.get("COMPOSE_PROJECT_NAME","graal-homologacao")
+    if env.get("GRAAL_SETUP_MODE") in ("homologacao","production"):
+        need(env["GRAAL_SETUP_MODE"]==marker,"Modo existente diferente: revise a transição mantendo projeto, banco, volumes e segredos; .env preservado.")
+    port=args.port or int(env.get("DASHBOARD_PORT","8080"));need(1024<=port<=65535,"Porta deve estar entre1024 e65535.")
+    need(mode!="online" or not args.ip or args.ip=="127.0.0.1","Modo online publica só em127.0.0.1; use --public-origin para o domínio público.")
+    ip="127.0.0.1" if mode=="online" else choose_ip(available,args.ip or env.get("DASHBOARD_IP"))
+    origin=args.public_origin or env.get("PUBLIC_ORIGIN") or (None if mode=="online" else f"http://{ip}:{port}")
+    need(origin,"Modo online exige --public-origin https://DOMINIO ou PUBLIC_ORIGIN HTTPS existente.")
+    u=parsed_url(origin)
+    if mode=="online":
+        need(u.scheme=="https" and not loopback_host(u.hostname),"Modo online exige origem HTTPS alcançável pelos navegadores.")
+        hostname="["+u.hostname+"]" if ":" in u.hostname else u.hostname
+        canonical="https://"+hostname+(":"+str(u.port) if u.port and u.port!=443 else "")
+        need(origin==canonical,"PUBLIC_ORIGIN deve ser canônica: HTTPS, host minúsculo, sem porta443 redundante ou barra final.")
+    else:need(origin==f"http://{ip}:{port}","PUBLIC_ORIGIN diverge do IP/porta; arquivo preservado.")
+    connection=args.glpi_connection or env.get("GLPI_CONNECTION","ssh");need(connection in ("local","ssh"),"GLPI_CONNECTION deve ser local ou ssh.")
+    api=args.api_url or env.get("GLPI_API_BASE_URL") or (f"http://127.0.0.1:{port}/api/integration/v1" if connection=="local" and mode=="online" else origin+"/api/integration/v1")
+    project=args.project or env.get("COMPOSE_PROJECT_NAME", "graal-estoque" if mode=="online" else "graal-homologacao")
     need(re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,50}",project),"Projeto Compose inválido.")
-    if env.get("GRAAL_SETUP_MODE")=="homologacao":
-        for k,v in {"DASHBOARD_IP":ip,"DASHBOARD_PORT":str(port),"COMPOSE_PROJECT_NAME":project}.items():
-            need(not env.get(k) or env[k]==v,f"{k} já configurado; revisão manual necessária.")
-    defaults={"GRAAL_SETUP_MODE":"homologacao","NODE_ENV":"development","PORT":"3000",
-        "DASHBOARD_IP":ip,"DASHBOARD_PORT":str(port),"COMPOSE_PROJECT_NAME":project,"PUBLIC_ORIGIN":f"http://{ip}:{port}",
+    defaults={"GRAAL_SETUP_MODE":marker,"NODE_ENV":"production" if mode=="online" else "development","PORT":"3000",
+        "DASHBOARD_IP":ip,"DASHBOARD_PORT":str(port),"COMPOSE_PROJECT_NAME":project,"PUBLIC_ORIGIN":origin,
+        "GLPI_CONNECTION":connection,"GLPI_API_BASE_URL":api,
         "POSTGRES_USER":"graal_owner","POSTGRES_DB":"graal","INTEGRATION_ENABLED":"true",
         "GLPI_INSTANCE_ID":"glpi-"+socket.gethostname().lower().replace(" ","-"),"GLPI_SSH_PORT":"22",
         "GLPI_DIR":"/var/www/glpi","GLPI_WEB_USER":"www-data","INTEGRATION_TOKEN_FILE":".local-setup/integration-token"}
-    need(not env.get("PUBLIC_ORIGIN") or env["PUBLIC_ORIGIN"]==defaults["PUBLIC_ORIGIN"],"PUBLIC_ORIGIN diverge do IP/porta; arquivo preservado.")
-    for k,v in defaults.items():
-        if k not in env:env[k]=v
-    for k in ("POSTGRES_PASSWORD","DB_APP_PASSWORD","SESSION_SECRET"):
-        if not env.get(k):
-            need(not existing,f"{k} ausente; forneça o segredo correto do ambiente.");env[k]=secrets.token_hex(32)
+    for key,value in defaults.items():
+        if key in initial and key in ("DASHBOARD_IP","DASHBOARD_PORT","COMPOSE_PROJECT_NAME","PUBLIC_ORIGIN","GLPI_CONNECTION","GLPI_API_BASE_URL"):
+            need(initial[key]==value,f"{key} já configurado; revisão manual necessária.")
+        env.setdefault(key,value)
+    need(env["NODE_ENV"] in (("production",) if mode=="online" else ("development","test")),"NODE_ENV incompatível com o modo escolhido.")
+    for key in ("POSTGRES_PASSWORD","DB_APP_PASSWORD","SESSION_SECRET"):
+        if not env.get(key):need(not existing,f"{key} ausente; forneça o segredo correto do ambiente.");env[key]=secrets.token_hex(32)
     need(all(re.fullmatch(r"[A-Za-z0-9_]{1,63}",env[k]) for k in ("POSTGRES_USER","POSTGRES_DB")),"Nome de banco/usuário inválido.")
     need(env["POSTGRES_USER"]!="graal_app","Dono do banco não pode ser graal_app.")
-    need(re.fullmatch(r"[a-f0-9]{64,}",env["DB_APP_PASSWORD"]),"DB_APP_PASSWORD deve ser hexadecimal com ao menos 64 caracteres.")
+    need(re.fullmatch(r"[a-f0-9]{64,}",env["DB_APP_PASSWORD"]),"DB_APP_PASSWORD deve ser hexadecimal com ao menos64 caracteres.")
     need(len(env["SESSION_SECRET"])>=32,"SESSION_SECRET curto.")
-    need(env["NODE_ENV"] in ("development","test"),"Homologação requer NODE_ENV development/test.")
     need(env["INTEGRATION_ENABLED"] in ("true","false"),"INTEGRATION_ENABLED deve ser true ou false.")
     env.setdefault("DATABASE_URL",f"postgresql://graal_app:{env['DB_APP_PASSWORD']}@db:5432/{env['POSTGRES_DB']}")
     for attr,key in {"glpi_host":"GLPI_SSH_HOST","glpi_user":"GLPI_SSH_USER","glpi_port":"GLPI_SSH_PORT","ssh_key":"GLPI_SSH_KEY","glpi_dir":"GLPI_DIR","web_user":"GLPI_WEB_USER","instance":"GLPI_INSTANCE_ID"}.items():
         value=getattr(args,attr,None)
-        if value is not None:
-            need(key not in initial or initial[key]==str(value),f"{key} existente não será alterado automaticamente.");env[key]=str(value)
+        if value is not None:need(key not in initial or initial[key]==str(value),f"{key} existente não será alterado automaticamente.");env[key]=str(value)
     need(re.fullmatch(r"[A-Za-z0-9._:-]{1,120}",env["GLPI_INSTANCE_ID"]),"Instância inválida.")
-    for k in initial:need(env[k]==initial[k],f"{k} existente não será reescrito.")
-    new=old.rstrip("\r\n")+"\n" if old else "# Homologação HTTP privada. Nunca versionar.\n"
-    for k,v in env.items():
-        if k in initial:continue
-        need(not any(c in str(v) for c in ("\r","\n","\x00","'","$",chr(96))),f"Valor não suportado em {k}.")
-        new+=f"{k}='{v}'\n"
+    # Validar endereços/flags antes de gravar qualquer configuração ou segredo.
+    make_payload(env,"11111111-1111-4111-8111-111111111111."+"a"*64)
+    for key in initial:need(env[key]==initial[key],f"{key} existente não será reescrito.")
+    new=old.rstrip("\r\n")+"\n" if old else "# Configuração Ubuntu privada/HTTPS. Nunca versionar.\n"
+    for key,value in env.items():
+        if key in initial:continue
+        need(not any(c in str(value) for c in ("\r","\n","\x00","'","$",chr(96))),f"Valor não suportado em {key}.")
+        new+=f"{key}='{value}'\n"
     if new!=old:
         if existing:atomic_write(root/".local-setup"/("env-"+datetime.datetime.now().strftime("%Y%m%d-%H%M%S-%f")+".bak"),old)
         atomic_write(path,new)
     else:os.chmod(path,0o600)
     return env
+
 def compose_command(root,env,tail):
-    return ["docker","compose","--env-file",str(root/".env"),"-p",env["COMPOSE_PROJECT_NAME"],"-f",str(root/"compose.homologacao.yaml"),*tail]
+    file="compose.same-host.yaml" if env.get("GRAAL_SETUP_MODE")=="production" else "compose.homologacao.yaml"
+    return ["docker","compose","--env-file",str(root/".env"),"-p",env["COMPOSE_PROJECT_NAME"],"-f",str(root/file),*tail]
+
 def ssh_command(env,program="ssh"):
     host=env.get("GLPI_SSH_HOST","");user=env.get("GLPI_SSH_USER","");port=env.get("GLPI_SSH_PORT","22")
     need(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9.-]{0,252}",host),"GLPI_SSH_HOST inválido.")
@@ -143,18 +175,28 @@ def ssh_command(env,program="ssh"):
     return cmd
 def validate_payload(p):
     fields={"enabled","base_url","instance_id","token","timeout","connect_timeout","private_http","deployment_mode"}
-    need(isinstance(p,dict) and set(p)==fields,"Payload inválido.")
+    need(isinstance(p,dict) and fields<=set(p) and set(p)<=fields|{"local_http"},"Payload inválido.")
     need(re.fullmatch(r"[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}\.[a-f0-9]{64}",p["token"]),"Credencial inválida.")
     need(re.fullmatch(r"[A-Za-z0-9._:-]{1,120}",p["instance_id"]),"Instância inválida.")
-    from urllib.parse import urlsplit
-    u=urlsplit(p["base_url"])
-    need(u.path=="/api/integration/v1" and not u.query and not u.fragment and not u.username and u.hostname,"URL inválida.")
-    need(u.scheme=="https" or (p["private_http"] is True and p["deployment_mode"]=="homologacao" and u.scheme=="http" and private_ipv4(u.hostname)),"HTTP somente privado com homologação explícita.")
+    u=parsed_url(p["base_url"],True)
+    need(p["deployment_mode"] in ("production","homologacao") and type(p["private_http"]) is bool and type(p.get("local_http",False)) is bool,"Modo/flags inválidos.")
+    local=p.get("local_http",False);private=p["private_http"]
+    need(not local or loopback_host(u.hostname),"HTTP local exige loopback do mesmo servidor.")
+    need(not private or (p["deployment_mode"]=="homologacao" and private_ipv4(u.hostname)),"HTTP privado exige homologação explícita.")
+    need(not (local and private),"Flags HTTP incompatíveis.")
+    need((u.scheme=="https" and not local and not private) or (u.scheme=="http" and (local or private)),"Use HTTPS; HTTP somente privado ou loopback explícito.")
     need(p["enabled"] is True and p["timeout"]==10 and p["connect_timeout"]==3,"Parâmetros inesperados.")
+
 def make_payload(env,token):
-    p={"enabled":True,"base_url":env["PUBLIC_ORIGIN"]+"/api/integration/v1","instance_id":env["GLPI_INSTANCE_ID"],"token":token,
-       "timeout":10,"connect_timeout":3,"private_http":True,"deployment_mode":"homologacao"}
+    origin=parsed_url(env["PUBLIC_ORIGIN"]);url=env.get("GLPI_API_BASE_URL") or env["PUBLIC_ORIGIN"]+"/api/integration/v1";u=parsed_url(url,True)
+    local=u.scheme=="http" and loopback_host(u.hostname)
+    need(not local or env.get("GLPI_CONNECTION")=="local","Loopback da API só pode ser usado com GLPI local no mesmo servidor.")
+    production=env.get("GRAAL_SETUP_MODE")=="production" or origin.scheme=="https" or u.scheme=="https"
+    p={"enabled":True,"base_url":url,"instance_id":env["GLPI_INSTANCE_ID"],"token":token,
+       "timeout":10,"connect_timeout":3,"private_http":u.scheme=="http" and not local,"deployment_mode":"production" if production else "homologacao"}
+    if local:p["local_http"]=True
     validate_payload(p);return p
+
 def validate_package(path):
     with zipfile.ZipFile(path) as z:
         need(sum(i.file_size for i in z.infolist())<20*1024*1024 and len(z.infolist())<1000,"ZIP excede limite.")
@@ -194,6 +236,26 @@ def provision(root,env,args):
     print("Credencial preservada." if existing else "Credencial criada e armazenada em arquivo protegido.")
     if not links:print("Configure vínculos explícitos de funcionários antes das movimentações.")
     return result["token"]
+def build_package(root):
+    run_command([sys.executable,str(root/"scripts/package-glpi-plugin.py")],cwd=root)
+    ver=re.search(r"PLUGIN_ESTOQUEGRAAL_VERSION','([0-9.]+)'",(root/"glpi-plugin/estoquegraal/setup.php").read_text()).group(1)
+    package=root/"dist"/f"estoquegraal-{ver}.zip";validate_package(package)
+    return package,hashlib.sha256(package.read_bytes()).hexdigest()
+
+def configure_local(root,env,token):
+    directory=env["GLPI_DIR"];web=env["GLPI_WEB_USER"]
+    need(re.fullmatch(r"/[A-Za-z0-9_./-]+",directory) and ".." not in pathlib.PurePosixPath(directory).parts and directory!="/","GLPI_DIR inválido.")
+    need(re.fullmatch(r"[a-z_][a-z0-9_-]{0,31}",web),"Usuário PHP inválido.")
+    package,digest=build_package(root)
+    prefix=[] if getattr(os,"geteuid",lambda:-1)()==0 else ["sudo","-n"]
+    require_tools(["bash"]+([] if not prefix else ["sudo"]))
+    command=prefix+["bash",str(root/"scripts/configurar-glpi.sh"),"--glpi-dir",directory,"--web-user",web,"--package",str(package),"--sha256",digest]
+    result=run_command(command,input_text=json.dumps(make_payload(env,token))+"\n",cwd=root)
+    try:report=json.loads(result.stdout)
+    except ValueError:raise SetupError("Resposta de instalação local inválida; confira backup GLPI.")
+    need(report.get("ok") is True,"Instalação local não confirmada.")
+    print("Backup local:",report.get("backup","consulte /var/backups/estoque-graal"));print("GLPI local configurado. Confira perfis e vínculos.")
+
 def configure_remote(root,env,token):
     require_tools(["ssh","scp"]);ssh=ssh_command(env);scp=ssh_command(env,"scp")
     directory=env["GLPI_DIR"];web=env["GLPI_WEB_USER"]
@@ -202,10 +264,7 @@ def configure_remote(root,env,token):
     stage=run_command(ssh+["umask 077; mktemp -d /tmp/estoque-graal.XXXXXXXX"]).stdout.strip()
     need(re.fullmatch(r"/tmp/estoque-graal\.[A-Za-z0-9]+",stage),"Diretório remoto inesperado.")
     try:
-        run_command([sys.executable,str(root/"scripts/package-glpi-plugin.py")],cwd=root)
-        ver=re.search(r"PLUGIN_ESTOQUEGRAAL_VERSION','([0-9.]+)'",(root/"glpi-plugin/estoquegraal/setup.php").read_text()).group(1)
-        package=root/"dist"/f"estoquegraal-{ver}.zip";validate_package(package)
-        digest=hashlib.sha256(package.read_bytes()).hexdigest()
+        package,digest=build_package(root)
         with tempfile.TemporaryDirectory(prefix="graal-deploy-") as tmp:
             bundle=pathlib.Path(tmp)/"bundle.tar"
             with tarfile.open(bundle,"w") as tar:
@@ -277,7 +336,7 @@ def main(argv=None):
     require_tools(["ip"])
     with setup_lock(ROOT):
         env=configure_env(ROOT,args,discover_ips())
-        print("Homologação HTTP privada:",env["PUBLIC_ORIGIN"],"| projeto:",env["COMPOSE_PROJECT_NAME"])
+        print("Dashboard:",env["PUBLIC_ORIGIN"],"| modo:",env["GRAAL_SETUP_MODE"],"| projeto:",env["COMPOSE_PROJECT_NAME"])
         if args.configure_only:print(".env preparado, sem Docker/SSH.");return
         require_tools(["docker"]);run_command(["docker","compose","version"])
         context=os.environ.get("DOCKER_CONTEXT") or run_command(["docker","context","show"]).stdout.strip()
@@ -286,15 +345,18 @@ def main(argv=None):
         run_command(compose_command(ROOT,env,["config","--quiet"]),cwd=ROOT)
         print("Construindo imagens e iniciando serviços; aguarde.")
         run_command(compose_command(ROOT,env,["up","-d","--build","--wait","--wait-timeout","240"]),cwd=ROOT)
-        print("Dashboard iniciado:",env["PUBLIC_ORIGIN"])
+        print("Serviços internos iniciados; acesso HTTPS depende do proxy/DNS/certificado existentes:" if env["GRAAL_SETUP_MODE"]=="production" else "Dashboard iniciado:",env["PUBLIC_ORIGIN"])
         if env["INTEGRATION_ENABLED"]=="false":print("Integração explicitamente desabilitada; GLPI e credenciais não foram alterados.");return
         if args.skip_glpi:print("GLPI não acessado. Reexecute sem --skip-glpi para configurar.");return
-        for key,prompt in [("GLPI_SSH_HOST","Host SSH do GLPI"),("GLPI_SSH_USER","Usuário SSH do GLPI")]:
-            if not env.get(key):
-                value=ask(None,prompt);need(not any(c in value for c in ("'","\n","\r","$",chr(96))),"Valor inválido.")
-                atomic_write(ROOT/".env",(ROOT/".env").read_text()+f"{key}='{value}'\n");env[key]=value
-        ssh_command(env)
-        token=provision(ROOT,env,args);configure_remote(ROOT,env,token)
+        if env.get("GLPI_CONNECTION")=="local":
+            token=provision(ROOT,env,args);configure_local(ROOT,env,token)
+        else:
+            for key,prompt in [("GLPI_SSH_HOST","Host SSH do GLPI"),("GLPI_SSH_USER","Usuário SSH do GLPI")]:
+                if not env.get(key):
+                    value=ask(None,prompt);need(not any(c in value for c in ("'","\n","\r","$",chr(96))),"Valor inválido.")
+                    atomic_write(ROOT/".env",(ROOT/".env").read_text()+f"{key}='{value}'\n");env[key]=value
+            ssh_command(env)
+            token=provision(ROOT,env,args);configure_remote(ROOT,env,token)
 if __name__=="__main__":
     try:main()
     except (SetupError,ValueError,KeyError,OSError,TypeError) as e:

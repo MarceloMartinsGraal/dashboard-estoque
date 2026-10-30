@@ -1,9 +1,13 @@
-# Configuração automática: dashboard por IP e GLPI por SSH
+# Configuração automática Ubuntu: GLPI local ou por SSH
 
 Base: commit 9f2a374c95baffa6287c4ae7deca1fb2ed6bfb6f.
-Esta entrega prepara scripts para Ubuntu Server 24.04. Nenhum servidor foi acessado para instalar ou configurar os serviços. O modo novo é **homologação HTTP em IPv4 privado**. Produção continua usando compose.yaml, domínio e HTTPS.
+Esta entrega prepara scripts para Ubuntu Server 24.04. Nenhum servidor foi acessado para instalar ou configurar os serviços. O modo original de homologação HTTP em IPv4 privado foi preservado. Para dashboard e GLPI no mesmo Ubuntu/Oracle, agora há --glpi-local e modo online com proxy HTTPS compartilhado; veja [guia local/online](configuracao-local-online.md). compose.yaml continua para servidor dedicado; no compartilhado usar compose.same-host.yaml para não ocupar80/443 do GLPI.
 
-## O que executar
+## Escolha do modo
+
+No mesmo servidor, use --glpi-local. Para rede privada --mode local; para acesso público HTTPS no proxy existente --mode online e --public-origin. PUBLIC_ORIGIN e GLPI_API_BASE_URL são independentes. Guia e comandos completos: [configuracao-local-online.md](configuracao-local-online.md).
+
+## Compatibilidade: GLPI em outro servidor por SSH
 
 Na raiz do repositório atualizado, no servidor do dashboard:
 
@@ -31,7 +35,7 @@ As senhas do banco e SESSION_SECRET nunca são transferidas ao GLPI. Apenas URL 
 
 ## Pré-requisitos
 
-No dashboard: Bash, Python 3.10+, iproute2 (comando ip), Docker Engine local com Compose v2, OpenSSH client e acesso ao daemon. O script não instala pacotes, não altera firewall e não troca contexto Docker. Daemons remotos por TCP/SSH são recusados.
+No dashboard: Bash, Python 3.10+, iproute2 (comando ip), Docker Engine local com Compose v2 e acesso ao daemon. OpenSSH é necessário somente no modo SSH; --glpi-local usa o instalador local com sudo. O script não instala pacotes, não altera firewall e não troca contexto Docker. Daemons remotos por TCP/SSH são recusados.
 
 No GLPI: instalação funcional **11.0.5**, PHP 8.2+ com as extensões exigidas pelo GLPI/plugin, Python 3.10+, Bash, tar e sudo. O caminho padrão é /var/www/glpi e o usuário PHP padrão é www-data. Instalações com diretórios externos, containers ou usuários diferentes precisam de revisão e parâmetros apropriados; não há descoberta automática de containers GLPI.
 
@@ -69,7 +73,7 @@ O Compose de homologação publica só o Nginx na interface privada escolhida. P
 
 O script preserva comentários, valores desconhecidos e segredos. Não usa source ou eval para ler o arquivo.
 
-Se o .env não foi criado por este instalador, ele para antes de alterar. --adopt-env permite adotar explicitamente um arquivo completo de homologação, com NODE_ENV development/test, IP/projeto explícitos e segredos já preenchidos. PUBLIC_ORIGIN precisa corresponder ao IP/porta; INTEGRATION_ENABLED aceita true/false; false preservado não provisiona GLPI. Confira o projeto e os volumes existentes antes de adotar: não use essa opção para migrar silenciosamente uma instalação.
+Se o .env não foi criado por este instalador, ele para antes de alterar. --adopt-env permite adotar explicitamente um arquivo completo de homologação, com modo/NODE_ENV coerentes, IP/projeto (local) ou origem HTTPS/projeto (online) explícitos e segredos já preenchidos. PUBLIC_ORIGIN precisa corresponder ao IP/porta; INTEGRATION_ENABLED aceita true/false; false preservado não provisiona GLPI. Confira o projeto e os volumes existentes antes de adotar: não use essa opção para migrar silenciosamente uma instalação.
 
 Senhas vazias em .env existente não são geradas automaticamente, pois um volume já pode depender de outros valores. Mudar .env não altera senha de PostgreSQL inicializado.
 
@@ -137,7 +141,7 @@ Se escolheu outro projeto, substitua o nome em todos os comandos.
 
 ## Produção futura
 
-Não reutilizar o Compose HTTP como publicação. Configure domínio/certificados e compose.yaml conforme operations.md. No GLPI, altere a URL para HTTPS, selecione produção e desligue private_http. Planeje explicitamente a transição dos dados/volumes; projeto Compose diferente pode criar outro banco. A integração em produção também precisa encaminhar INTEGRATION_ENABLED à API por configuração revisada.
+Não reutilizar o Compose HTTP como publicação. No servidor compartilhado, use compose.same-host.yaml atrás do proxy HTTPS existente conforme configuracao-local-online.md; no dedicado, compose.yaml conforme operations.md. No GLPI, altere a URL para HTTPS, selecione produção e desligue private_http. Planeje explicitamente a transição dos dados/volumes; projeto Compose diferente pode criar outro banco. A integração em produção também precisa encaminhar INTEGRATION_ENABLED à API por configuração revisada.
 
 ## Verificação local e limites
 

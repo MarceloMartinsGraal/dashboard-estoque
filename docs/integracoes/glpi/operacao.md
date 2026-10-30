@@ -1,3 +1,9 @@
+# Atualização0.1.9 — mesmo servidor e HTTPS
+
+O helper CLI aceita local_http opcional para API em127.0.0.1/localhost/::1 do mesmo host e confirma os flags persistidos. Acesso público segue HTTPS. Usar essa opção apenas quando o processoPHP e a API alcançável estão no mesmo host; não usar localhost de outro servidor/container. O configurador do repositório tem --glpi-local, --mode local|online, --public-origin e --api-url; não exige SSH no modo local. No online compartilhado, compose.same-host.yaml publica só127.0.0.1:8080 atrás do proxy existente, sem ocupar80/443 do GLPI. O proxy do host deve sobrescrever X-Graal-Client-IP com o IP real da conexão para preservar limite de login por cliente.
+
+Atualizar pelo instalador existente com backup; não desinstalar, não apagar tabelas/intenções ou substituir a chave GLPI. O instalador executa cache:clear; assets e regras de estoque não mudaram. Conferir a URL que o PHP realmente alcança; PUBLIC_ORIGIN do navegador é independente. Instruções completas no repositório: docs/configuracao-local-online.md. Não há migração de schema nova nesta alteração. GLPI real e proxy HTTPS ainda exigem homologação.
+
 # Instalação futura e operação
 
 ## Instalar em homologação

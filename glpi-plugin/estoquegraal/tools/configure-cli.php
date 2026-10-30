@@ -45,21 +45,23 @@ try {
     }
     if($action!=='apply')throw new RuntimeException('Ação inválida');
     $fields=['enabled','base_url','instance_id','token','timeout','connect_timeout','private_http','deployment_mode'];
-    if(array_diff(array_keys($input),$fields)||array_diff($fields,array_keys($input)))throw new RuntimeException('Campos inválidos');
+    if(array_diff(array_keys($input),array_merge($fields,['local_http']))||array_diff($fields,array_keys($input)))throw new RuntimeException('Campos inválidos');
+    if(array_key_exists('local_http',$input)&&!is_bool($input['local_http']))throw new RuntimeException('Flag local inválida');
+    if(!empty($input['local_http'])&&!in_array(strtolower((string)parse_url($input['base_url'],PHP_URL_HOST)),['localhost','127.0.0.1','[::1]'],true))throw new RuntimeException('HTTP local exige loopback');
     $settings=new \EstoqueGraal\Settings($input);
     if(!empty($old['instance_id'])&&$old['instance_id']!==$input['instance_id'])throw new RuntimeException('Instância existente diferente; revisão manual necessária');
     // Valida somente leitura antes de substituir a configuração.
     (new \EstoqueGraal\ApiClient($settings))->get('/products',['page'=>1,'limit'=>1,'status'=>'ativo','availability'=>'positive']);
     $values=['enabled'=>'1','base_url'=>$settings->baseUrl,'instance_id'=>$settings->instanceId,
         'token'=>$input['token'],'timeout'=>(string)$settings->timeout,'connect_timeout'=>(string)$settings->connectTimeout,
-        'local_http'=>'0','private_http'=>!empty($input['private_http'])?'1':'0',
+        'local_http'=>!empty($input['local_http'])?'1':'0','private_http'=>!empty($input['private_http'])?'1':'0',
         'deployment_mode'=>$input['deployment_mode']];
     $DB->beginTransaction();
     try{
         Config::setConfigurationValues('plugin:estoquegraal',$values);
         $saved=Config::getConfigurationValues('plugin:estoquegraal');
         $plain=$key->decrypt($saved['token']??'');
-        if(!is_string($plain)||!hash_equals($input['token'],$plain)||($saved['base_url']??'')!==$values['base_url'])throw new RuntimeException('Configuração não confirmada');
+        if(!is_string($plain)||!hash_equals($input['token'],$plain)||($saved['base_url']??'')!==$values['base_url']||($saved['local_http']??'0')!==$values['local_http']||($saved['private_http']??'0')!==$values['private_http']||($saved['deployment_mode']??'')!==$values['deployment_mode'])throw new RuntimeException('Configuração não confirmada');
         $DB->commit();
     }catch(\Throwable $e){$DB->rollback();throw $e;}
     echo "{\"ok\":true,\"readCheck\":true}\n";

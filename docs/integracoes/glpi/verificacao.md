@@ -1,3 +1,7 @@
+# Verificação da entrega0.1.9
+
+Configurador Python testado com fixtures para modos local/online, preservação de configuração, ausência de SSH no modo local e payload separado da origem do navegador. Helper PHP real foi executado com cURL e Kernel/Config/DB GLPI simulados: persistência de local_http em loopback, leitura da API, rejeição HTTP público e flags inválidos. Não é teste de GLPI/MySQL real. O contrato do proxy foi revisado estaticamente, não executado com Nginx/Docker. Resultados completos no repositório: docs/configuracao-local-online-verificacao.md. Registros anteriores abaixo são históricos e não homologam esta versão instalada.
+
 # Contrato e verificações
 
 ## Endpoints reutilizados
