@@ -4,7 +4,7 @@ import argparse, contextlib, datetime, hashlib, ipaddress, json, os, pathlib, re
 import secrets, shlex, shutil, socket, stat, subprocess, sys, tarfile, tempfile, zipfile
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 DIAGNOSTIC_PHASES={"bootstrap","resources","kernel","security","read-config","payload-validation","api-read","persist","verify-persist","commit","version","backup","status","deactivate","install","activate","cache-clear"}
-DIAGNOSTIC_REASONS={"instance-mismatch","invalid-fields","invalid-action","payload-too-large","invalid-input","invalid-local-flag","invalid-loopback","invalid-url","invalid-mode","invalid-http-mode","invalid-instance","invalid-token","invalid-timeout","disabled","invalid-json","validation-exception"}
+DIAGNOSTIC_REASONS={"instance-in-use","instance-mismatch","invalid-fields","invalid-action","payload-too-large","invalid-input","invalid-local-flag","invalid-loopback","invalid-url","invalid-mode","invalid-http-mode","invalid-instance","invalid-token","invalid-timeout","disabled","invalid-json","validation-exception"}
 class SetupError(Exception):
     def __init__(self,message,diagnostic=None):
         super().__init__(message);self.diagnostic=diagnostic
@@ -56,7 +56,9 @@ def run_command(cmd,*,input_text=None,capture=True,cwd=None):
     except (subprocess.CalledProcessError,OSError) as exc:
         diagnostic=safe_diagnostic(getattr(exc,"stderr",None))
         detail=(f" Etapa: {diagnostic['phase']}."+(f" HTTP {diagnostic['status']}." if 'status' in diagnostic else "")) if diagnostic else ""
-        if diagnostic and "reason" in diagnostic:detail+=f" Motivo: {diagnostic['reason']}."
+        if diagnostic and "reason" in diagnostic:
+            detail+=f" Motivo: {diagnostic['reason']}."
+            if diagnostic['reason']=="instance-in-use":detail+=" Há intenções/histórico no plugin; a instância foi preservada. Não apague a tabela nem force a troca."
         raise SetupError(f"Falha em {pathlib.Path(str(cmd[0])).name}."+detail+" Nenhum segredo é exibido.",diagnostic) from None
 def atomic_write(path,text,mode=0o600):
     path=pathlib.Path(path);need(not path.is_symlink(),f"Link simbólico recusado: {path.name}")

@@ -12,7 +12,7 @@ class PluginEstoquegraalConfig extends CommonGLPI {
         Session::checkRight('config',UPDATE);(new Config())->checkGlobal(UPDATE);
         $old=self::values(true);
         $v=['enabled'=>isset($post['enabled'])?'1':'0','base_url'=>trim((string)($post['base_url']??'')),'instance_id'=>trim((string)($post['instance_id']??'')),'timeout'=>(string)($post['timeout']??'10'),'connect_timeout'=>(string)($post['connect_timeout']??'3'),'local_http'=>isset($post['local_http'])?'1':'0','private_http'=>isset($post['private_http'])?'1':'0','deployment_mode'=>(string)($post['deployment_mode']??'production')];
-        if(!empty($old['instance_id'])&&$old['instance_id']!==$v['instance_id']&&count($DB->request(['FROM'=>\EstoqueGraal\GlpiIntentStore::TABLE,'LIMIT'=>1]))>0)throw new \EstoqueGraal\PluginError('Há intenções gravadas. Não altere a instância; concilie com o administrador.',409);
+        \EstoqueGraal\Settings::assertInstanceChangeAllowed($old,$v['instance_id'],$DB);
         $token=trim((string)($post['token']??''));$clear=isset($post['clear_token']);
         if($clear){$v['enabled']='0';$token='';}
         if($v['enabled']==='1')new \EstoqueGraal\Settings([...$v,'token'=>$token!==''?$token:($old['token']??'')]);

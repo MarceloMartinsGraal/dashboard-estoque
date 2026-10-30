@@ -55,7 +55,7 @@ try {
     if(array_key_exists('local_http',$input)&&!is_bool($input['local_http']))throw new RuntimeException('Flag local inválida');
     if(!empty($input['local_http'])&&!in_array(strtolower((string)parse_url($input['base_url'],PHP_URL_HOST)),['localhost','127.0.0.1','[::1]'],true))throw new RuntimeException('HTTP local exige loopback');
     $settings=new \EstoqueGraal\Settings($input);
-    if(!empty($old['instance_id'])&&$old['instance_id']!==$input['instance_id'])throw new RuntimeException('Instância existente diferente; revisão manual necessária');
+    \EstoqueGraal\Settings::assertInstanceChangeAllowed($old,$input['instance_id'],$DB);
     // Valida somente leitura antes de substituir a configuração.
     $phase='api-read';
     (new \EstoqueGraal\ApiClient($settings))->get('/products',['page'=>1,'limit'=>1,'status'=>'ativo','availability'=>'positive']);
@@ -81,6 +81,7 @@ try {
     $diagnostic=['phase'=>$phase];
     $reasons=[
         'Instância existente diferente; revisão manual necessária'=>'instance-mismatch',
+        'Há intenções gravadas. Não altere a instância; concilie com o administrador.'=>'instance-in-use',
         'Campos inválidos'=>'invalid-fields','Ação inválida'=>'invalid-action',
         'Entrada grande'=>'payload-too-large','Entrada inválida'=>'invalid-input',
         'Flag local inválida'=>'invalid-local-flag','HTTP local exige loopback'=>'invalid-loopback',

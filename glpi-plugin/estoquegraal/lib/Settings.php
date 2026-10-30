@@ -11,6 +11,10 @@ final class Settings {
         $p=array_map('intval',explode('.',$host));
         return $p[0]===10||($p[0]===172&&$p[1]>=16&&$p[1]<=31)||($p[0]===192&&$p[1]===168);
     }
+    public static function assertInstanceChangeAllowed(array $old,string $instance,object $db):void {
+        if(!empty($old['instance_id'])&&$old['instance_id']!==$instance&&count($db->request(['FROM'=>GlpiIntentStore::TABLE,'LIMIT'=>1]))>0)
+            throw new PluginError('Há intenções gravadas. Não altere a instância; concilie com o administrador.',409);
+    }
     public function __construct(array $values) {
         if(empty($values['enabled']))throw new PluginError('Integração inativa. Solicite configuração ao administrador.',503);
         $url=rtrim((string)($values['base_url']??''),'/');$parts=parse_url($url);

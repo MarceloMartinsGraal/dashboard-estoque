@@ -79,3 +79,22 @@ Verificação local da atualização: 60 testes Python e contrato PHP real/cURL 
 
 
 Atualização0.1.11: validação identifica motivos controlados (instance-mismatch, invalid-url, invalid-token, invalid-fields etc.) sem exibir entrada ou exceção remota. Fixture passou a carregar a configuração pré-existente; teste reproduz rejeição de instância diferente, sem gravar ou apagar o estado anterior. Isso não comprova que esse seja o motivo no servidor. Diagnóstico do servidor ainda necessário antes de modificar identidade, credencial ou configuração. 61 testes Python e contrato PHP/cURL passaram localmente.
+
+
+# Correção0.1.12 — instance-mismatch na configuração inicial
+
+Causa comprovada: o helper CLI rejeitava incondicionalmente uma instância diferente, enquanto o formulário do plugin já permitia corrigi-la quando a tabela de intenções estivesse vazia. A regra agora é compartilhada entre formulário e CLI.
+
+Com ZERO intenções, o instalador pode alinhar a configuração ao identificador do .env/cliente já provisionado, após leitura autenticada bem-sucedida da API. Preserva a credencial existente e o backup anterior. Probe não grava. Qualquer intenção, inclusive concluída ou rejeitada, bloqueia a troca com instance-in-use/409. Falha na consulta também bloqueia. Não apague registros nem force substituição se houver histórico: esse caso exige conciliação específica, não é configuração inicial vazia.
+
+Atualize os arquivos do repositório no Ubuntu (o ZIP do plugin sozinho não atualiza o configurador) ou aplique o patch fornecido com git apply --check antes de git apply. Depois execute, na raiz do projeto:
+
+```bash
+sudo bash scripts/assistente-graal.sh
+```
+
+Não exige editar .env, copiar UUID/token, desinstalar plugin ou trocar senha. Usa o instalador existente com backup e cache:clear. Backend e migrações inalterados. Nenhuma alteração foi aplicada ao servidor nesta entrega.
+
+Verificado localmente:61 testes Python; contrato CLI PHP real/cURL com GLPI simulado, alteração sem intenções, probe sem persistência, cinco estados protegidos, falha de consulta e da API sem gravação e repetição segura; formulário compartilha a mesma regra e foi testado. Homologação no Ubuntu/GLPI real continua pendente.
+
+---
