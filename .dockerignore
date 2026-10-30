@@ -14,3 +14,7 @@ tests/graal_estoque.json
 # Documentos privados não entram no Git/contexto Docker.
 var/invoices/
 *.[pP][dD][fF]
+
+# Backups e credenciais privadas do configurador, nunca enviados ao build.
+.local-setup
+.setup-graal.lock

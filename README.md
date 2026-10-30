@@ -237,3 +237,11 @@ Aplicar a migração007 antes de iniciar a versão nova. Em banco vazio, entrar 
 ## Dashboard e GLPI no mesmo servidor Oracle
 
 O configurador Ubuntu aceita `--glpi-local` (sem SSH para o próprio servidor), `--mode local` para rede privada e `--mode online` para HTTPS no proxy existente. `PUBLIC_ORIGIN` permanece a origem do navegador; `GLPI_API_BASE_URL` é independente para o PHP. Online usa `compose.same-host.yaml` com dashboard só em127.0.0.1:8080, preservando80/443 do GLPI. Veja [comandos, proxy obrigatório e transição sem perder volumes](docs/configuracao-local-online.md). Plugin atualizado0.1.9; gerar ZIP com `python scripts/package-glpi-plugin.py`. Nenhuma configuração de servidor foi aplicada nesta entrega.
+
+### Assistente único no Ubuntu compartilhado com GLPI
+
+```bash
+sudo bash scripts/assistente-graal.sh
+```
+
+Pergunta os dados uma vez e reutiliza as escolhas nas próximas execuções. Automatiza backup/revisão do .env, Docker, proxy HTTPS dedicado (Apache/Nginx padrão Ubuntu), certificado existente ou Certbot disponível, integração e atualização do plugin. Primeiro acesso continua exigindo troca de senha no navegador. Não altera DNS/NSG nem instala dependências. Leia os [pré-requisitos, retomada e recuperação](docs/assistente-servidor.md) antes de executar. Para rever escolhas: `sudo bash scripts/assistente-graal.sh --reconfigurar`.

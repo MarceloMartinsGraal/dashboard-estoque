@@ -2,6 +2,8 @@
 
 Este guia é para os dois sistemas no **mesmo servidor Ubuntu**, não desenvolvimento VS Code/Windows. O configurador continua Python auxiliar; a API continua Node.js/TypeScript. Código preparado localmente, sem acessar ou atualizar Oracle/GLPI.
 
+Para automatizar a sequência com escolhas salvas e proxy dedicado, use o [assistente de comando único](assistente-servidor.md). Os comandos abaixo continuam disponíveis para configuração controlada por etapas.
+
 ## Modos e endereços
 
 | Configuração | Local/rede privada | Online no servidor compartilhado |
