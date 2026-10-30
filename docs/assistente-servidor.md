@@ -98,3 +98,7 @@ Não exige editar .env, copiar UUID/token, desinstalar plugin ou trocar senha. U
 Verificado localmente:61 testes Python; contrato CLI PHP real/cURL com GLPI simulado, alteração sem intenções, probe sem persistência, cinco estados protegidos, falha de consulta e da API sem gravação e repetição segura; formulário compartilha a mesma regra e foi testado. Homologação no Ubuntu/GLPI real continua pendente.
 
 ---
+
+## instance-in-use: preservar o histórico GLPI
+
+Use o [procedimento de reconciliação explícita](integracoes/glpi/reconciliacao-instancia.md) com `sudo bash scripts/assistente-graal.sh --reconciliar-instancia` após atualizar também a CLI do dashboard. Não trocar a instância do GLPI nem apagar suas intenções.

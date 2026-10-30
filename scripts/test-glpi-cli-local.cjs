@@ -6,9 +6,9 @@ fs.writeFileSync(path.join(root,'bin/console'),'fixture');
 fs.writeFileSync(path.join(root,'src/Glpi/Application/ResourcesChecker.php'),'<?php namespace Glpi\\Application; class ResourcesChecker {function __construct($root){}function checkResources(){}}');
 fs.writeFileSync(path.join(root,'vendor/autoload.php'),`<?php
 namespace Glpi\\Kernel {class Kernel {function boot(){define('GLPI_VERSION','11.0.5');}}}
-namespace {class GLPIKey {function keyExists(){return true;}function isConfigSecured(...$a){return true;}function decrypt($s){return str_starts_with($s,'fixture:')?base64_decode(substr($s,8)):'';}}
+namespace {class Plugin {static function isPluginActive($n){return false;}}class GLPIKey {function keyExists(){return true;}function isConfigSecured(...$a){return true;}function decrypt($s){return str_starts_with($s,'fixture:')?base64_decode(substr($s,8)):'';}}
 class Config {static array $v=[];static function getConfigurationValues(...$a){if(!self::$v&&is_file(getcwd().'/config.json'))self::$v=json_decode(file_get_contents(getcwd().'/config.json'),true);return self::$v;}static function setConfigurationValues($c,$v){$v['token']='fixture:'.base64_encode($v['token']);self::$v=$v;file_put_contents(getcwd().'/config.json',json_encode($v));}}
-$DB=new class {function request($query){if(is_file(getcwd().'/query-error'))throw new \RuntimeException('fixture query failure');return is_file(getcwd().'/intent.json')?[json_decode(file_get_contents(getcwd().'/intent.json'),true)]:[];}function beginTransaction(){}function commit(){}function rollback(){}};}
+$DB=new class {function request($query){if(is_file(getcwd().'/query-error'))throw new \RuntimeException('fixture query failure');if(!is_file(getcwd().'/intent.json'))return []; $row=json_decode(file_get_contents(getcwd().'/intent.json'),true);if(!isset($query['WHERE']['state']))return [$row];$states=$query['WHERE']['state'];return ($states[0]==='<>'?$row['state']!==$states[1]:in_array($row['state'],$states,true))?[$row]:[];}function beginTransaction(){}function commit(){}function rollback(){}};}
 `);
 let reads=0;let apiStatus=200;const token='11111111-1111-4111-8111-111111111111.'+'a'.repeat(64);
 const server=http.createServer((req,res)=>{try{assert.equal(req.headers.authorization,'Bearer '+token);assert.ok(req.url.startsWith('/api/integration/v1/products?'));reads++;res.statusCode=apiStatus;res.setHeader('Content-Type','application/json');res.end(JSON.stringify({items:[],total:0,page:1,limit:1}));}catch{res.statusCode=500;res.end('{}');}});
@@ -18,6 +18,9 @@ const payload={enabled:true,base_url:url,instance_id:'same-host',token,timeout:1
 const result=await invoke(payload);assert.equal(result.status,0);assert.equal(JSON.parse(result.out).readCheck,true);const saved=JSON.parse(fs.readFileSync(path.join(root,'config.json'),'utf8'));assert.equal(saved.base_url,url);assert.equal(saved.local_http,'1');assert.equal(saved.private_http,'0');assert.equal(saved.deployment_mode,'production');assert.notEqual(saved.token,token);
 assert.equal((await invoke({...payload,local_http:false})).status,1);assert.equal((await invoke({...payload,base_url:'http://8.8.8.8/api/integration/v1'})).status,1);assert.equal((await invoke({...payload,local_http:'true'})).status,1);assert.equal(reads,1);
 const before=fs.readFileSync(path.join(root,'config.json'),'utf8');
+const connection=await invoke(null,'connection');assert.equal(connection.status,0);assert.equal(JSON.parse(connection.out).token,token);assert.equal(JSON.parse(connection.out).instanceId,'same-host');assert.equal(JSON.parse(connection.out).uncertain,false);assert.equal(fs.readFileSync(path.join(root,'config.json'),'utf8'),before);
+fs.writeFileSync(path.join(root,'intent.json'),JSON.stringify({state:'unknown'}));assert.equal(JSON.parse((await invoke(null,'connection')).out).uncertain,true);fs.unlinkSync(path.join(root,'intent.json'));
+
 const probe=await invoke(payload,'probe');assert.equal(probe.status,0);assert.equal(JSON.parse(probe.out).readCheck,true);assert.equal(fs.readFileSync(path.join(root,'config.json'),'utf8'),before);
 const target={...payload,instance_id:'another-instance'};
 const mismatch=await invoke(target,'probe');assert.equal(mismatch.status,0);assert.equal(fs.readFileSync(path.join(root,'config.json'),'utf8'),before);

@@ -245,3 +245,5 @@ sudo bash scripts/assistente-graal.sh
 ```
 
 Pergunta os dados uma vez e reutiliza as escolhas nas próximas execuções. Automatiza backup/revisão do .env, Docker, proxy HTTPS dedicado (Apache/Nginx padrão Ubuntu), certificado existente ou Certbot disponível, integração e atualização do plugin. Primeiro acesso continua exigindo troca de senha no navegador. Não altera DNS/NSG nem instala dependências. Leia os [pré-requisitos, retomada e recuperação](docs/assistente-servidor.md) antes de executar. Para rever escolhas: `sudo bash scripts/assistente-graal.sh --reconfigurar`.
+
+Para `instance-in-use`, preserve a identidade histórica do GLPI e use `sudo bash scripts/assistente-graal.sh --reconciliar-instancia` após atualizar o código. Leia o [procedimento de reconciliação](docs/integracoes/glpi/reconciliacao-instancia.md); o assistente não apaga intenções nem funde operações.

@@ -235,4 +235,19 @@ class AssistantTests(unittest.TestCase):
                 start.assert_not_called();provision.assert_not_called();prepare.assert_not_called()
                 self.assertTrue(local.call_args.kwargs["diagnose"]);self.assertEqual(envfile.read_bytes(),before)
 
+    def test_reconcile_preserves_plugin_identity_and_backs_up_private_files(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmp:
+            root=pathlib.Path(tmp);(root/".local-setup").mkdir()
+            env={"GLPI_INSTANCE_ID":"new","INTEGRATION_TOKEN_FILE":".local-setup/integration-token","COMPOSE_PROJECT_NAME":"graal-existente","PUBLIC_ORIGIN":"http://10.0.0.2:8080","GLPI_CONNECTION":"local"}
+            (root/".env").write_text("GLPI_INSTANCE_ID='new'\nCUSTOM=preserve\n")
+            token=root/".local-setup/integration-token";token.write_text("11111111-1111-4111-8111-111111111111."+"a"*64+"\n")
+            identity=dict(ok=True,instanceId="historical",token="22222222-2222-4222-8222-222222222222."+"b"*64,uncertain=False,pending=False,active=False)
+            reply=subprocess.CompletedProcess([],0,json.dumps(dict(token="22222222-2222-4222-8222-222222222222."+"b"*64,instanceId="historical",mode="reused")))
+            with patch.object(ag.sg,"configure_local",return_value=identity) as inspect,patch.object(ag.sg,"run_command",return_value=reply):
+                result=ag.reconcile_local(root,env,dict(admin_id="admin",links=[]))
+            self.assertEqual(result["GLPI_INSTANCE_ID"],"historical");self.assertEqual(token.read_text(),"22222222-2222-4222-8222-222222222222."+"b"*64+"\n")
+            self.assertIn("CUSTOM=preserve",(root/".env").read_text());self.assertTrue(list((root/".local-setup").glob("reconcile-*/env.bak")))
+            self.assertTrue(inspect.call_args.kwargs["inspect_connection"])
+
 if __name__=="__main__":unittest.main()

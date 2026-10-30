@@ -159,6 +159,7 @@ class SetupTests(unittest.TestCase):
             self.assertFalse(any("plugin:deactivate" in c for c in calls))
             self.assertTrue(any("plugin:install" in c for c in calls))
             self.assertTrue(any("apply" in c for c in calls))
+            self.assertLess(next(i for i,c in enumerate(calls) if "apply" in c),next(i for i,c in enumerate(calls) if "plugin:activate" in c))
             self.assertTrue(list((base/"backups").glob("*/plugin/old.txt")))
 
     def test_env_cannot_redirect_compose_to_remote_daemon(self):

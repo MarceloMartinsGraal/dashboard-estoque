@@ -1,3 +1,9 @@
+# Atualização0.1.13 — instância com histórico
+
+Para instance-in-use, preservar a identidade do GLPI e usar o fluxo de reconciliação explícito no dashboard: `sudo bash scripts/assistente-graal.sh --reconciliar-instancia`. Atualizar também o configurador e a CLI administrativa embarcada (imagem api reconstruída pelo comando), não apenas o ZIP. Não apagar intenções nem forçar alteração da identidade GLPI. Procedimento e limites: docs/integracoes/glpi/reconciliacao-instancia.md. Backups privados e verificações transacionais precedem qualquer alinhamento.
+
+---
+
 # Correção0.1.12 — instance-mismatch na configuração inicial
 
 Causa comprovada: o helper CLI rejeitava incondicionalmente uma instância diferente, enquanto o formulário do plugin já permitia corrigi-la quando a tabela de intenções estivesse vazia. A regra agora é compartilhada entre formulário e CLI.

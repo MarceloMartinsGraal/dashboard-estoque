@@ -3,8 +3,8 @@
 import argparse, contextlib, datetime, hashlib, ipaddress, json, os, pathlib, re
 import secrets, shlex, shutil, socket, stat, subprocess, sys, tarfile, tempfile, zipfile
 ROOT=pathlib.Path(__file__).resolve().parents[1]
-DIAGNOSTIC_PHASES={"bootstrap","resources","kernel","security","read-config","payload-validation","api-read","persist","verify-persist","commit","version","backup","status","deactivate","install","activate","cache-clear"}
-DIAGNOSTIC_REASONS={"instance-in-use","instance-mismatch","invalid-fields","invalid-action","payload-too-large","invalid-input","invalid-local-flag","invalid-loopback","invalid-url","invalid-mode","invalid-http-mode","invalid-instance","invalid-token","invalid-timeout","disabled","invalid-json","validation-exception"}
+DIAGNOSTIC_PHASES={"reconcile","bootstrap","resources","kernel","security","read-config","payload-validation","api-read","persist","verify-persist","commit","version","backup","status","deactivate","install","activate","cache-clear"}
+DIAGNOSTIC_REASONS={"target-credential-required","uncertain-history","source-in-use","source-shared","link-conflict","admin-required","source-credential-invalid","reconcile-refused","instance-in-use","instance-mismatch","invalid-fields","invalid-action","payload-too-large","invalid-input","invalid-local-flag","invalid-loopback","invalid-url","invalid-mode","invalid-http-mode","invalid-instance","invalid-token","invalid-timeout","disabled","invalid-json","validation-exception"}
 class SetupError(Exception):
     def __init__(self,message,diagnostic=None):
         super().__init__(message);self.diagnostic=diagnostic
@@ -58,6 +58,8 @@ def run_command(cmd,*,input_text=None,capture=True,cwd=None):
         detail=(f" Etapa: {diagnostic['phase']}."+(f" HTTP {diagnostic['status']}." if 'status' in diagnostic else "")) if diagnostic else ""
         if diagnostic and "reason" in diagnostic:
             detail+=f" Motivo: {diagnostic['reason']}."
+            explanations={"target-credential-required":"A identidade histórica já existe no dashboard, mas a credencial salva no GLPI não a autentica. Recupere/rotacione essa credencial explicitamente; nenhum cliente foi fundido.","uncertain-history":"Há operação de resultado incerto no GLPI e a identidade não existe neste backend. É necessário recuperar a idempotência do backend anterior, sem reenviar movimentos.","source-in-use":"O cliente de origem já tem operações e não será renomeado.","source-shared":"A origem possui outros clientes; fusão recusada.","link-conflict":"Vínculo existente difere; nenhuma conta será remapeada.","admin-required":"Administrador precisa estar ativo e ter concluído primeiro acesso.","source-credential-invalid":"Credencial atual inválida/expirada; não foi rotacionada automaticamente.","reconcile-refused":"Reconciliação recusada sem alterações; confira locks, imagem atualizada e pré-requisitos administrativos."}
+            if diagnostic['reason'] in explanations:detail+=" "+explanations[diagnostic['reason']]
             if diagnostic['reason']=="instance-in-use":detail+=" Há intenções/histórico no plugin; a instância foi preservada. Não apague a tabela nem force a troca."
         raise SetupError(f"Falha em {pathlib.Path(str(cmd[0])).name}."+detail+" Nenhum segredo é exibido.",diagnostic) from None
 def atomic_write(path,text,mode=0o600):
@@ -110,6 +112,8 @@ def arguments(argv=None):
     g.add_argument("--package",required=True);g.add_argument("--sha256",required=True)
     g.add_argument("--backup-dir",default="/var/backups/estoque-graal")
     g.add_argument("--diagnose-only",action="store_true")
+    g.add_argument("--inspect-connection",action="store_true")
+    g.add_argument("--quiesce",action="store_true")
     return p.parse_args(argv)
 def parsed_url(value,api=False):
     from urllib.parse import urlsplit
@@ -271,7 +275,7 @@ def build_package(root):
     package=root/"dist"/f"estoquegraal-{ver}.zip";validate_package(package)
     return package,hashlib.sha256(package.read_bytes()).hexdigest()
 
-def configure_local(root,env,token,*,diagnose=False):
+def configure_local(root,env,token,*,diagnose=False,inspect_connection=False,quiesce=False):
     directory=env["GLPI_DIR"];web=env["GLPI_WEB_USER"]
     need(re.fullmatch(r"/[A-Za-z0-9_./-]+",directory) and ".." not in pathlib.PurePosixPath(directory).parts and directory!="/","GLPI_DIR inválido.")
     need(re.fullmatch(r"[a-z_][a-z0-9_-]{0,31}",web),"Usuário PHP inválido.")
@@ -280,10 +284,13 @@ def configure_local(root,env,token,*,diagnose=False):
     require_tools(["bash"]+([] if not prefix else ["sudo"]))
     command=prefix+["bash",str(root/"scripts/configurar-glpi.sh"),"--glpi-dir",directory,"--web-user",web,"--package",str(package),"--sha256",digest]
     if diagnose:command+=["--diagnose-only"]
+    if inspect_connection:command+=["--inspect-connection"]
+    if quiesce:command+=["--quiesce"]
     result=run_command(command,input_text=json.dumps(make_payload(env,token))+"\n",cwd=root)
     try:report=json.loads(result.stdout)
     except ValueError:raise SetupError("Resposta de instalação local inválida; confira backup GLPI.")
     need(report.get("ok") is True,"Instalação local não confirmada.")
+    if inspect_connection:return report
     if diagnose:print("Diagnóstico OK: PHP/GLPI, chave e leitura autenticada da API. Nenhuma configuração ou movimento gravado.")
     else:print("Backup local:",report.get("backup","consulte /var/backups/estoque-graal"));print("GLPI local configurado. Confira perfis e vínculos.")
 
@@ -328,15 +335,24 @@ def install_glpi(args,payload):
     except KeyError:raise SetupError("Usuário PHP inexistente.")
     php=["sudo","-n","-u",args.web_user,"--","php"];cli=php+[str(root/"bin/console"),"--no-interaction"]
     need(re.search(r"\b11\.0\.5\b",glpi_step("version",cli+["--version"],cwd=root).stdout),"Versão GLPI diferente de 11.0.5: exige revisão.")
-    if args.diagnose_only:
+    need(not args.quiesce or args.inspect_connection,"Suspensão exige inspeção de reconciliação explícita.")
+    need(not(args.diagnose_only and args.inspect_connection),"Modos de leitura incompatíveis.")
+    if args.diagnose_only or args.inspect_connection:
         parent=root/"plugins";parent.mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(prefix=".estoquegraal-probe-",dir=parent) as stage:
             os.chmod(stage,0o755)
             with zipfile.ZipFile(package) as archive:archive.extractall(stage)
             probe=pathlib.Path(stage)/"estoquegraal"
             for item in [probe,*probe.rglob("*")]:os.chmod(item,0o755 if item.is_dir() else 0o644)
-            glpi_step("api-read",php+[str(probe/"tools/configure-cli.php"),"probe","--root",str(root)],input_text=json.dumps(payload),cwd=root)
-        print(json.dumps({"ok":True,"readCheck":True}));return
+            if args.quiesce:
+                state=json.loads(glpi_step("status",php+[str(probe/"tools/configure-cli.php"),"status","--root",str(root)],cwd=root).stdout)
+                need(type(state.get("active")) is bool,"Estado do plugin não confirmado.")
+                if state["active"]:glpi_step("deactivate",cli+["plugin:deactivate","estoquegraal"],cwd=root)
+            action="connection" if args.inspect_connection else "probe"
+            result=glpi_step("read-config" if args.inspect_connection else "api-read",php+[str(probe/"tools/configure-cli.php"),action,"--root",str(root)],input_text=json.dumps(payload),cwd=root)
+        if args.inspect_connection:print(result.stdout,end="")
+        else:print(json.dumps({"ok":True,"readCheck":True}))
+        return
     backup_root=pathlib.Path(args.backup_dir).resolve();need(not backup_root.is_relative_to(root),"Backup deve ficar fora da instalação GLPI.")
     backup_root.mkdir(parents=True,exist_ok=True);os.chmod(backup_root,0o700)
     backup=backup_root/datetime.datetime.now().strftime("%Y%m%d-%H%M%S-%f");backup.mkdir(mode=0o700)
@@ -357,10 +373,10 @@ def install_glpi(args,payload):
             if existed:dest.rename(pathlib.Path(tmp)/"previous")
             new.rename(dest)
             glpi_step("install",cli+["plugin:install","--force","estoquegraal"],cwd=root)
-            glpi_step("activate",cli+["plugin:activate","estoquegraal"],cwd=root)
             helper=php+[str(dest/"tools/configure-cli.php")]
             if not existed:atomic_write(backup/"config.json",glpi_step("backup",helper+["backup"],cwd=root).stdout)
             glpi_step("persist",helper+["apply"],input_text=json.dumps(payload),cwd=root)
+            glpi_step("activate",cli+["plugin:activate","estoquegraal"],cwd=root)
             glpi_step("cache-clear",cli+["cache:clear"],cwd=root)
         except (SetupError,OSError,ValueError) as exc:
             if not dest.exists() and (pathlib.Path(tmp)/"previous").exists():(pathlib.Path(tmp)/"previous").rename(dest)

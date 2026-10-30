@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Assistente Ubuntu para dashboard/GLPI no mesmo host. Sem dependências novas."""
 import argparse
+import datetime
 import contextlib
 import datetime
 import ipaddress
@@ -422,7 +423,7 @@ def choose_admin(rows):
     return rows[int(value) - 1]["id"]
 
 
-def finish_integration(root, env, c):
+def finish_integration(root, env, c, *, reconcile=False):
     out = sg.run_command(sg.compose_command(root, env, ["run", "--rm", "-T", "--no-deps", "api", "node", "scripts/provision-integration.cjs"]), input_text=json.dumps(dict(operation="list-admins")), cwd=root)
     result = json.loads(out.stdout)
     if result.get("requiresFirstAccess"):
@@ -437,10 +438,44 @@ def finish_integration(root, env, c):
         sg.need(re.fullmatch(r"[1-9][0-9]*", glpi_id), "ID GLPI inválido.")
         c["links"] = [glpi_id + ":" + c["admin_id"]]
     save_state(root, c)
+    if reconcile:env.update(reconcile_local(root,env,c))
     args = sg.arguments(["dashboard", "--admin-id", c["admin_id"]] + [v for link in c["links"] for v in ("--link", link)])
     token = sg.provision(root, env, args)
     sg.configure_local(root, env, token)
     return True
+
+
+def reconcile_local(root,env,c):
+    path=root/env["INTEGRATION_TOKEN_FILE"]
+    sg.need(not path.is_symlink() and path.resolve().is_relative_to((root/".local-setup").resolve()),"Arquivo de credencial inválido.")
+    sg.need(path.is_file(),"Reconciliação exige a credencial atual protegida.")
+    token=path.read_text().strip()
+    identity=sg.configure_local(root,env,token,inspect_connection=True,quiesce=True)
+    target=identity.get("instanceId")
+    sg.need(isinstance(target,str) and re.fullmatch(r"[A-Za-z0-9._:-]{1,120}",target),"Identidade histórica GLPI inválida.")
+    sg.need(identity.get("active") is False,"Plugin precisa permanecer desativado durante a reconciliação.")
+    sg.need(type(identity.get("uncertain")) is bool and type(identity.get("pending")) is bool,"Não foi possível verificar pendências no GLPI.")
+    links=[]
+    for link in c["links"]:
+        external,_,employee=link.partition(":")
+        links.append(dict(externalUserId=external,employeeId=employee))
+    request=dict(operation="reconcile-instance",adminId=c["admin_id"],sourceInstance=env["GLPI_INSTANCE_ID"],targetInstance=target,sourceToken=token,targetToken=identity.get("token",""),uncertain=identity["uncertain"],pending=identity["pending"],links=links)
+    envpath=root/".env";sg.need(not envpath.is_symlink(),".env não pode ser link.")
+    old=envpath.read_text(encoding="utf-8")
+    backup=root/".local-setup"/("reconcile-"+datetime.datetime.now().strftime("%Y%m%d-%H%M%S-%f"))
+    sg.atomic_write(backup/"env.bak",old);sg.atomic_write(backup/"token.bak",token+"\n")
+    response=sg.run_command(sg.compose_command(root,env,["run","--rm","-T","--no-deps","api","node","scripts/provision-integration.cjs"]),input_text=json.dumps(request),cwd=root)
+    result=json.loads(response.stdout)
+    sg.need(result.get("instanceId")==target and result.get("mode") in ("aligned","reused","already-aligned"),"Reconciliação não confirmada.")
+    candidate=dict(env,GLPI_INSTANCE_ID=target)
+    # Validate returned credential/transport before writing private state.
+    sg.make_payload(candidate,result["token"])
+    # Token first: interruption before .env is resumable by already-aligned/reused path.
+    sg.atomic_write(path,result["token"]+"\n")
+    updated=re.sub(r"(?m)^[ \t]*GLPI_INSTANCE_ID=.*$",f"GLPI_INSTANCE_ID='{target}'",old)
+    sg.atomic_write(envpath,updated.rstrip()+"\n")
+    print("Identidade histórica do GLPI preservada; reconciliação:",result["mode"],"| backup privado:",backup)
+    return candidate
 
 
 def check_https(c):
@@ -458,7 +493,9 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--reconfigurar", action="store_true", help="Rever escolhas e responsável, com backup do .env")
     parser.add_argument("--diagnosticar", action="store_true", help="Somente leitura autenticada da API, sem reinstalar plugin/provisionar/alterar configuração")
+    parser.add_argument("--reconciliar-instancia", action="store_true", help="Preservar identidade histórica do GLPI e reconciliar credencial/cliente sem mover operações")
     args = parser.parse_args(argv)
+    sg.need(not(args.diagnosticar and args.reconciliar_instancia),"Escolha diagnóstico ou reconciliação, não ambos.")
     sg.need(sys.platform.startswith("linux") and os.geteuid() == 0, "Execute no Ubuntu com sudo bash scripts/assistente-graal.sh.")
     os.umask(0o077)
     sg.require_tools(["bash", "php"] if args.diagnosticar else ["ip", "docker", "bash", "php"])
@@ -503,7 +540,9 @@ def run(root, args):
         if env["INTEGRATION_ENABLED"] == "false":
             print("Integração explicitamente desabilitada; valor preservado. Nenhum plugin/credencial alterado.")
             return
-        if not finish_integration(root, env, c): return
+        if getattr(args,"reconciliar_instancia",False):
+            if not finish_integration(root,env,c,reconcile=True):return
+        elif not finish_integration(root,env,c):return
     print("Configuração concluída. Acesse", c["origin"], "; homologue busca/leitura e direitos do perfil GLPI antes de movimentar estoque.")
 
 

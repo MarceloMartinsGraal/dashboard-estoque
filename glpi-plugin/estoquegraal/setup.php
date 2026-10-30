@@ -1,7 +1,7 @@
 <?php
 // SPDX-License-Identifier: GPL-3.0-or-later
 require_once __DIR__.'/lib/bootstrap.php';
-define('PLUGIN_ESTOQUEGRAAL_VERSION','0.1.12');
+define('PLUGIN_ESTOQUEGRAAL_VERSION','0.1.13');
 function plugin_init_estoquegraal():void {
     global $PLUGIN_HOOKS;
     $PLUGIN_HOOKS['csrf_compliant']['estoquegraal']=true;

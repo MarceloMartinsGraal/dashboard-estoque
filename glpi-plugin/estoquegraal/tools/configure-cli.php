@@ -31,6 +31,16 @@ try {
         if(function_exists('stream_isatty')&&stream_isatty(STDOUT))throw new RuntimeException('Redirecione backup para arquivo protegido');
         echo json_encode($old,JSON_THROW_ON_ERROR)."\n";exit;
     }
+    if($action==='connection'){
+        if(function_exists('stream_isatty')&&stream_isatty(STDOUT))throw new RuntimeException('Canal privado obrigatório');
+        $instance=(string)($old['instance_id']??'');
+        if(!preg_match('/^[A-Za-z0-9._:-]{1,120}$/D',$instance))throw new RuntimeException('Identidade GLPI indisponível');
+        $token=empty($old['token'])?'':$key->decrypt($old['token']);
+        $active=Plugin::isPluginActive('estoquegraal');
+        $pending=count($DB->request(['FROM'=>\EstoqueGraal\GlpiIntentStore::TABLE,'WHERE'=>['state'=>['<>','done']],'LIMIT'=>1]))>0;
+        $uncertain=count($DB->request(['FROM'=>\EstoqueGraal\GlpiIntentStore::TABLE,'WHERE'=>['state'=>['sending','unknown']],'LIMIT'=>1]))>0;
+        echo json_encode(['ok'=>true,'instanceId'=>$instance,'token'=>is_string($token)?$token:'','uncertain'=>$uncertain,'pending'=>$pending,'active'=>$active],JSON_THROW_ON_ERROR)."\n";exit;
+    }
     $phase='payload-validation';
     $raw=stream_get_contents(STDIN,65537);
     if(strlen($raw)>65536)throw new RuntimeException('Entrada grande');
