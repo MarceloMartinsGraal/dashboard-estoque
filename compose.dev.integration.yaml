@@ -1,7 +1,7 @@
-# Override somente para compose.dev.yaml: habilita a API /api/integration/v1 no teste local.
+# Override legado compatível. A API já vem habilitada; preserva false explícito no ambiente.
 # Uso: docker compose -f compose.dev.yaml -f compose.dev.integration.yaml up -d --build --wait
 # Não contém credenciais; clientes são cadastrados no banco (docs/integracoes/integration-v1.md).
 services:
   api:
     environment:
-      INTEGRATION_ENABLED: 'true'
+      INTEGRATION_ENABLED: ${INTEGRATION_ENABLED-true}

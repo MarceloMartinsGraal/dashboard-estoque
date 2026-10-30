@@ -25,7 +25,7 @@ export class IntegrationOperations {
             throw new UnauthorizedException('Credencial de integração inválida');
         const link = (await c.query('SELECT employee_id FROM external_employee_links WHERE instance_id=$1 AND external_user_id=$2 AND active FOR SHARE', [client.instance_id, externalUserId])).rows[0];
         if (!link ||
-            !(await c.query('SELECT id FROM employees WHERE id=$1 AND active FOR SHARE', [link.employee_id])).rowCount)
+            !(await c.query('SELECT id FROM employees WHERE id=$1 AND active AND NOT must_change_password FOR SHARE', [link.employee_id])).rowCount)
             throw new ForbiddenException('Usuário externo sem vínculo ativo com funcionário ativo');
         return link.employee_id as string;
     }

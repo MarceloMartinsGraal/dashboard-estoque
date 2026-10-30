@@ -6,7 +6,7 @@ Referências atuais: [README](../README.md), [operação Ubuntu](operations.md),
 
 Node24.22.0, npm e PostgreSQL18.4; versões da aplicação travadas em package-lock.json, .nvmrc e Dockerfile. Não executar npm update para instalar. Usar `npm ci`. Não há dependência nova nesta manutenção.
 
-Para API/frontend sem contêiner, seguir Executar localmente no README: preencher .env a partir de .env.example, iniciar somente o banco local, compilar, migrar e executar bootstrap no banco vazio. `bootstrap` é interativo e só cria a primeira conta quando não há funcionários. Não repetir em banco povoado. Nunca usar exemplos como segredo.
+Para API/frontend sem contêiner, seguir Executar localmente no README: preencher .env a partir de .env.example, iniciar somente o banco local, compilar, migrar e iniciar API. Banco sem funcionários recebe administrador temporário com troca obrigatória. `bootstrap` é interativo e só cria a primeira conta quando não há funcionários. Não repetir em banco povoado. Nunca usar exemplos como segredo.
 
 ## Variáveis de ambiente
 
@@ -20,11 +20,11 @@ Para API/frontend sem contêiner, seguir Executar localmente no README: preenche
 | POSTGRES_USER / POSTGRES_DB | Dono/banco do Compose; padrões graal_owner/graal |
 | POSTGRES_PASSWORD | Segredo do dono do banco; exigido pelo Compose; nunca usar na URL da API |
 | DB_APP_PASSWORD | Segredo hexadecimal do papel graal_app; exigido pelo Compose e usado na URL da API |
-| INTEGRATION_ENABLED | false/ausente desabilita; somente true habilita. Compose normal não repassa a variável; override de integração local é explicitamente opcional |
+| INTEGRATION_ENABLED | ausente/true habilita; false desabilita; vazio/outro valor falha startup. Compose encaminha em produção/dev/homologação; preservar decisões explícitas |
 | TEST_DATABASE_URL | Banco novo descartável _test em loopback para suítes/simulador; não é lido pela API normal |
 | BACKUP_DIR | Diretório protegido externo ao Git/volume PostgreSQL para scripts/backup.sh |
 
-O init-db.sh só é executado em volume vazio. Trocar .env não troca senha de um banco existente. Não recriar ou apagar o volume para resolver senha/configuração: planejar correção autorizada. Integração segue desabilitada sem override e sem credenciais reais.
+O init-db.sh só é executado em volume vazio. Trocar .env não troca senha de um banco existente. Não recriar ou apagar o volume para resolver senha/configuração: planejar correção autorizada. Integração vem habilitada e continua exigindo credencial válida, sem criação automática de credencial real.
 
 ## Comandos de verificação
 
@@ -66,7 +66,7 @@ O down acima aponta apenas para o projeto de teste exclusivo, sem -v. Ele encerr
 
 ## Migrações
 
-Não há migração nova nesta manutenção. As cinco migrações existentes são aplicadas em ordem, com lock e checksum. API normal não migra automaticamente; compose.dev tem serviço migrate antes da API, enquanto compose.yaml depende do procedimento manual documentado. Em base vazia: compilar e executar npm run migrate no destino local conferido, seguido de bootstrap. Nunca editar migração aplicada ou assumir que voltar imagem desfaz schema.
+Atualização30/10:007 acrescenta a pendência de primeiro acesso; existentes recebem false. As sete migrações existentes são aplicadas em ordem, com lock e checksum. API normal não migra automaticamente; compose.dev tem serviço migrate antes da API, enquanto compose.yaml depende do procedimento manual documentado. Em base vazia: compilar e executar npm run migrate no destino local conferido, seguido do startup e primeiro acesso com troca obrigatória, somente se o banco não possuir funcionários. Nunca editar migração aplicada ou assumir que voltar imagem desfaz schema.
 
 004 descontinua metros: rejeita base com frações em metro para exigir conciliação explícita. 005 prepara tabelas vazias de integração, sem credenciais. 001 cria o esquema, 002 registra fingerprints da importação, 003 versiona sessões. Toda necessidade futura de schema fica fora desta manutenção.
 
@@ -75,3 +75,5 @@ Não há migração nova nesta manutenção. As cinco migrações existentes sã
 Contrato oficial da API em docs/integracoes, sem cópia de referência em outputs. OpenAPI estático; Swagger não está instalado. A instalação/homologação no GLPI segue pendente.
 
 O JSON tests/graal_estoque.json veio do commit ccd9e99; nenhuma suíte/script o referencia. Foi preservado sem leitura/carga/modificação e excluído apenas do contexto Docker para evitar copiá-lo para imagens de teste. A decisão de removê-lo do histórico Git ou substituir por fixture sintética pertence a outra tarefa.
+
+Detalhes atuais: [primeiro acesso e configuração](primeiro-acesso.md).

@@ -262,7 +262,7 @@ async function loginScreen() {
     form,
     el(
       'p',
-      'Primeiro acesso? Solicite sua conta ao responsável pelo sistema.',
+      'Instalação nova? Conclua o primeiro acesso antes da exposição pública. Demais usuários: solicite sua conta ao responsável.',
       'subtle',
     ),
   );
@@ -286,7 +286,25 @@ async function loginScreen() {
     }
   });
 }
+async function firstAccessScreen(){
+  ++navigationVersion;current='Primeiro acesso';root.replaceChildren();
+  const wrap=el('section','','login');wrap.append(brandMark(),el('h1','Primeiro acesso'),el('p','Troque a senha inicial antes de utilizar o dashboard. Depois, entre novamente com a nova senha.','muted'));
+  const form=el('form'),password=control({key:'newPassword',label:'Nova senha',type:'password'}),confirmation=control({key:'confirmPassword',label:'Confirme a nova senha',type:'password'});
+  for(const field of [password,confirmation]){const input=field.input as HTMLInputElement;input.minLength=12;input.maxLength=128;input.autocomplete='new-password';}
+  const error=el('p','','error'),recovery=el('div');error.role='alert';const save=el('button','Alterar senha','primary');save.type='submit';let busy=false;
+  const logout=button('Sair',async()=>{await api('auth/logout',{});user=null;await loginScreen();});
+  form.append(password.label,confirmation.label,el('p','Use pelo menos 12 caracteres.','subtle'),error,recovery,save);wrap.append(form,logout);root.append(wrap);
+  form.addEventListener('submit',async event=>{
+    event.preventDefault();if(busy||!form.reportValidity())return;
+    if(password.input.value!==confirmation.input.value){error.textContent='A confirmação da senha está diferente.';return;}
+    busy=true;save.disabled=true;logout.disabled=true;error.textContent='';recovery.replaceChildren();
+    try{await api('auth/change-password',{password:password.input.value,confirmPassword:confirmation.input.value});user=null;await loginScreen();message('Senha alterada. Entre novamente com a nova senha.');}
+    catch(e){error.textContent=(e as Error).message+' Se houve falha de comunicação, tente entrar com a nova senha antes de repetir.';recovery.replaceChildren(button('Ir para o login',async()=>{user=null;await loginScreen();}));}
+    finally{busy=false;save.disabled=false;logout.disabled=false;}
+  });
+}
 async function shell() {
+  if(user?.must_change_password){await firstAccessScreen();return;}
   root.replaceChildren();
   const header = el('header'),
     brand = el('div', '', 'brand');
@@ -323,6 +341,7 @@ async function shell() {
   await navigate(routeFromUrl(), false);
 }
 async function navigate(page: string, push = true) {
+  if(user?.must_change_password){await firstAccessScreen();return;}
   if (push) {
     if (page === 'Histórico') {
       if (new URLSearchParams(location.search).get('view') !== 'history')
@@ -1821,6 +1840,7 @@ async function employees() {
 window.addEventListener('popstate', () => {
   if (user) navigate(routeFromUrl(), false).catch(notifyError);
 });
+window.addEventListener('password-change-required',()=>{if(user){user.must_change_password=true;void firstAccessScreen();}});
 window.addEventListener('session-expired', () => {
   if (user) loginScreen().catch(notifyError);
 });

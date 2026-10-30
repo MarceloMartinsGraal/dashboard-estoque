@@ -3,7 +3,7 @@
   "info": {
     "title": "Dashboard Graal — Integração v1",
     "version": "1.0.1",
-    "description": "Contrato compatível do dashboard com Estoque Graal. Desabilitado por padrão. O plugin verifica permissões no GLPI 11.0.5; a API autentica a credencial e resolve o funcionário vinculado. Catálogo e estoque compartilhados; referências de chamados e resultados idempotentes isolados por instância. HTTP privado somente em homologação explícita; produção exige HTTPS."
+    "description": "Contrato compatível do dashboard com Estoque Graal. Habilitado por padrão; false explícito desabilita e valor inválido impede startup. O plugin verifica permissões no GLPI 11.0.5; a API autentica a credencial e resolve o funcionário vinculado. Catálogo e estoque compartilhados; referências de chamados e resultados idempotentes isolados por instância. HTTP privado somente em homologação explícita; produção exige HTTPS."
   },
   "servers": [
     {

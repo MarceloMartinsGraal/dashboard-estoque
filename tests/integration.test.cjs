@@ -94,7 +94,9 @@ after(async () => {
   if (app) await app.close();
   if (db) await db.onModuleDestroy();
 });
-test('integração desabilitada por padrão, autenticação obrigatória e CSRF pessoal preservado', async () => {
+test('integração habilitada por padrão, false explícito, autenticação e CSRF preservados', async () => {
+  assert.equal((await get('/products')).status, 200);
+  process.env.INTEGRATION_ENABLED='false';
   assert.equal((await get('/products')).status, 503);
   process.env.INTEGRATION_ENABLED = 'true';
   assert.equal((await http.get(root + '/products')).status, 401);
@@ -747,4 +749,11 @@ test('cliente PHP atual consome backend real: vazio, cadastro zero, entrada, rep
   process.env.INTEGRATION_ENABLED='true';assert.match(await invoke('normal'),/OK/);
   try {process.env.INTEGRATION_ENABLED='false';assert.match(await invoke('disabled'),/OK/);}
   finally {process.env.INTEGRATION_ENABLED='true';}
+});
+
+
+test('funcionário com troca inicial pendente não opera pela credencial técnica',async()=>{
+ process.env.INTEGRATION_ENABLED='true';await db.pool.query('UPDATE employees SET must_change_password=true WHERE id=$1',[actor]);
+ try{const r=await post('/movements','pending-first-access-actor',movement());assert.equal(r.status,403);assert.equal((await get('/operations/pending-first-access-actor')).status,404);}
+ finally{await db.pool.query('UPDATE employees SET must_change_password=false WHERE id=$1',[actor]);}
 });

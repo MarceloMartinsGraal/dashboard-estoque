@@ -17,6 +17,7 @@ async function readResponse(response:Response,path:string){
     .json()
     .catch(() => ({ message: 'Resposta indisponível' }));
   if (!response.ok) {
+    if(result.code==='PASSWORD_CHANGE_REQUIRED')window.dispatchEvent(new CustomEvent('password-change-required'));
     if (response.status === 401 && !path.startsWith('auth/'))
       window.dispatchEvent(new CustomEvent('session-expired'));
     throw new ApiError(result.message ?? 'Não foi possível concluir a operação',response.status,result);

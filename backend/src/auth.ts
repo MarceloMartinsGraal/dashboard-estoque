@@ -12,6 +12,8 @@ import {
   UnauthorizedException,
   UseGuards,
   HttpException,
+  SetMetadata,
+  ConflictException,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { randomBytes, createHmac } from 'node:crypto';
@@ -34,6 +36,7 @@ declare global {
         name: string;
         username: string;
         manages_accounts: boolean;
+        must_change_password: boolean;
       };
     }
   }
@@ -47,7 +50,7 @@ export class SessionGuard implements CanActivate {
       throw new UnauthorizedException('Autenticação necessária');
     const employee = (
       await this.db.pool.query(
-        'SELECT id,name,username,manages_accounts,session_version::text FROM employees WHERE id=$1 AND active',
+        'SELECT id,name,username,manages_accounts,must_change_password,session_version::text FROM employees WHERE id=$1 AND active',
         [req.session.employeeId],
       )
     ).rows[0];
@@ -58,7 +61,9 @@ export class SessionGuard implements CanActivate {
       name: employee.name,
       username: employee.username,
       manages_accounts: employee.manages_accounts,
+      must_change_password: employee.must_change_password,
     };
+    if(employee.must_change_password && !Reflect.getMetadata('auth:initial-access',context.getHandler()))throw new ForbiddenException({message:'Troque a senha inicial antes de utilizar o sistema.',code:'PASSWORD_CHANGE_REQUIRED'});
     return true;
   }
 }
@@ -66,6 +71,20 @@ export class SessionGuard implements CanActivate {
 export class AuthService {
   private dummy = argon2.hash(randomBytes(32), { type: argon2.argon2id });
   constructor(private readonly db: Database) {}
+  async changePassword(id:string,version:string|undefined,body:unknown){
+    const data=validate(z.object({password:z.string().min(12).max(128).refine(v=>v!=='admin','Escolha uma senha diferente da inicial'),confirmPassword:z.string().max(128)}).strict().refine(v=>v.password===v.confirmPassword,'Confirmação da senha divergente'),body);
+    const hash=await argon2.hash(data.password,{type:argon2.argon2id});
+    return this.db.transaction(async c=>{
+      await c.query('SELECT pg_advisory_xact_lock(742106)');
+      const row=(await c.query('SELECT active,must_change_password,session_version::text FROM employees WHERE id=$1 FOR UPDATE',[id])).rows[0];
+      if(!row?.active||row.session_version!==version)throw new UnauthorizedException('Sessão inválida. Entre novamente.');
+      if(!row.must_change_password)throw new ConflictException('Não há troca inicial de senha pendente.');
+      await c.query('UPDATE employees SET password_hash=$2,must_change_password=false,session_version=session_version+1 WHERE id=$1',[id,hash]);
+      await c.query("DELETE FROM sessions WHERE sess->>'employeeId'=$1",[id]);
+      await audit(c,id,'trocar_senha_inicial','funcionario',id,{firstAccessCompleted:true,sessionsRevoked:true});
+      return {ok:true,loginRequired:true};
+    });
+  }
   async login(username: string, password: string, ip: string) {
     const key = (value: string) =>
       createHmac('sha256', process.env.SESSION_SECRET!)
@@ -102,6 +121,7 @@ export class AuthService {
       name: employee.name,
       username: employee.username,
       manages_accounts: employee.manages_accounts,
+      must_change_password: employee.must_change_password,
       sessionVersion: String(employee.session_version),
     };
   }
@@ -140,9 +160,18 @@ export class AuthController {
     const { sessionVersion, ...publicEmployee } = employee;
     return { employee: publicEmployee, csrf: req.session.csrf };
   }
+  @SetMetadata('auth:initial-access',true)
   @UseGuards(SessionGuard) @Get('me') me(@Req() req: Request) {
     return req.employee;
   }
+  @SetMetadata('auth:initial-access',true)
+  @UseGuards(SessionGuard) @Post('change-password') async changePassword(@Req() req:Request,@Body() body:unknown,@Res({passthrough:true}) res:Response){
+    const result=await this.auth.changePassword(req.employee!.id,req.session.employeeVersion,body);
+    try{await new Promise<void>((resolve,reject)=>req.session.destroy(error=>error?reject(error):resolve()));}
+    finally{res.clearCookie(process.env.NODE_ENV==='production'?'__Host-graal.sid':'graal.sid',{path:'/'});}
+    return result;
+  }
+  @SetMetadata('auth:initial-access',true)
   @UseGuards(SessionGuard) @Post('logout') async logout(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
@@ -166,7 +195,7 @@ export class EmployeesController {
       throw new ForbiddenException('Somente responsáveis administram contas');
     return (
       await this.db.pool.query(
-        'SELECT id,username,name,active,manages_accounts FROM employees ORDER BY name',
+        'SELECT id,username,name,active,manages_accounts,must_change_password FROM employees ORDER BY name',
       )
     ).rows;
   }
@@ -196,15 +225,15 @@ export class EmployeesController {
       if (
         !(
           await c.query(
-            'SELECT id FROM employees WHERE id=$1 AND active AND manages_accounts FOR SHARE',
-            [req.employee!.id],
+            'SELECT id FROM employees WHERE id=$1 AND active AND manages_accounts AND NOT must_change_password AND session_version::text=$2 FOR SHARE',
+            [req.employee!.id,req.session.employeeVersion??null],
           )
         ).rowCount
       )
         throw new ForbiddenException('Permissão revogada');
       if (d.id && (!d.active || !d.managesAccounts)) {
         const managers = await c.query(
-          'SELECT id FROM employees WHERE active AND manages_accounts',
+          'SELECT id FROM employees WHERE active AND manages_accounts AND NOT must_change_password',
         );
         if (managers.rows.length === 1 && managers.rows[0].id === d.id)
           throw new HttpException(

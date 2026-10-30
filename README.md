@@ -6,7 +6,7 @@ Sistema de estoque único, com localização por armários e contas individuais.
 
 Implementação inicial: autenticação, catálogo, abertura por contagem física, entradas/saídas/ajustes, realocação, estorno, histórico operacional/legado e prévia/confirmação idempotente da importação. O histórico legado fica fora do livro de saldos. Pela decisão atual, a confirmação pode criar uma abertura única pelo saldo líquido em localização não informada; negativos abrem zerados com pendência. Não há dupla contagem.
 
-Sem commit, push, deploy, certificado real ou importação em produção realizados pelo agente. Arquivos reais da auditoria permanecem fora do repositório. Não há conta ou senha operacional padrão.
+Sem commit, push, deploy, certificado real ou importação em produção realizados pelo agente. Arquivos reais da auditoria permanecem fora do repositório. Instalação sem funcionários cria admin/admin temporário, com troca obrigatória antes de qualquer operação; consulte [primeiro acesso](docs/primeiro-acesso.md).
 
 ## Requisitos e versões fixadas
 
@@ -22,16 +22,15 @@ Fontes consultadas em 21/10/2026: [Node LTS](https://nodejs.org/en/about/previou
 
 `compose.dev.yaml` sobe banco, migração, API e frontend (Nginx em HTTP) sem precisar de Node no host. Não é configuração de produção: usa `NODE_ENV=development`, sem HTTPS, e publica apenas `127.0.0.1:8080`.
 
-Com `.env` preenchido (seção abaixo; o compose usa só `SESSION_SECRET`, `POSTGRES_PASSWORD` e `DB_APP_PASSWORD`):
+Com `.env` preenchido (seção abaixo; segredos `SESSION_SECRET`, `POSTGRES_PASSWORD` e `DB_APP_PASSWORD`; `INTEGRATION_ENABLED` é encaminhada com padrão true):
 
 ```powershell
 docker compose -f compose.dev.yaml up -d --build --wait
-docker compose -f compose.dev.yaml run --rm --no-deps api node dist/backend/bootstrap.js
 ```
 
-O segundo comando cria o primeiro responsável (interativo; só funciona com o banco sem funcionários). Abra exatamente `http://localhost:8080`; `127.0.0.1` falha na verificação CSRF de origem. Após mudar código, repita o primeiro comando. Para parar: `docker compose -f compose.dev.yaml down`; acrescentar `-v` apaga o banco local de teste.
+Em banco vazio, o startup cria o administrador inicial com troca obrigatória. Entre com admin/admin e defina senha forte antes de publicar. Abra exatamente `http://localhost:8080`; `127.0.0.1` falha na verificação CSRF de origem. Após mudar código, repita o primeiro comando. Para parar: `docker compose -f compose.dev.yaml down`, sem `-v` para preservar os volumes.
 
-Os scripts `.sh` e as configurações Nginx precisam de quebras de linha LF; `.gitattributes` garante isso no checkout. Com CRLF, o `init-db.sh` falha e o banco fica sem o usuário `graal_app`. Nesse caso, recrie o volume local.
+Os scripts `.sh` e as configurações Nginx precisam de quebras de linha LF; `.gitattributes` garante isso no checkout. Com CRLF, o `init-db.sh` falha e o banco fica sem o usuário `graal_app`. Nesse caso, corrija as quebras e revise o provisionamento com backup; não apague volumes para tentar corrigir uma instalação existente.
 
 ## Executar localmente
 
@@ -50,7 +49,6 @@ docker compose -f compose.local.yaml up -d --wait
 npm ci
 npm run build
 npm run migrate
-npm run bootstrap
 npm run dev:api
 ```
 
@@ -62,7 +60,7 @@ npm run dev:web
 
 Abra `http://localhost:5173`. Após mudar código backend, execute `npm run build:backend`; o processo `dev:api` reinicia ao detectar o compilado atualizado.
 
-`bootstrap` pede login, nome e senha sem eco no terminal; só funciona quando ainda não há funcionários. O primeiro responsável administra contas pela tela Funcionários. Funcionários ativos possuem operação completa. Responsáveis também administram contas; o último responsável ativo não pode ser removido dessa função. Alterações de conta revogam sessões. Senhas devem ter 12–128 caracteres; nenhuma é gerada como padrão.
+`bootstrap` manual é opcional antes do primeiro startup em banco vazio e exige senha forte. A inicialização normal, após migrar, cria admin/admin somente se não existir funcionário e exige troca antes do uso. Não redefine contas existentes. O primeiro responsável administra contas pela tela Funcionários. Funcionários ativos possuem operação completa. Responsáveis também administram contas; o último responsável ativo não pode ser removido dessa função. Alterações de conta revogam sessões. Senha nova e demais cadastros exigem12–128 caracteres; admin/admin é exceção temporária exclusiva do banco vazio.
 
 Sem Docker, use PostgreSQL 18.4 local, crie um banco exclusivo e um usuário sem superusuário com permissão de criar tabelas no schema e ajuste `DATABASE_URL`. Não use o banco de produção para desenvolvimento ou testes.
 
@@ -163,7 +161,7 @@ Não há nova migração. Não recrie banco, volume, `.env` nem contas.
 
 ## Dashboard preparado para integração futura
 
-API versionada `/api/integration/v1`, desabilitada por padrão (`INTEGRATION_ENABLED=false`), exclusivamente para chamadas entre servidores autenticadas por Bearer revogável/expirável e com escopos. Sem cookie pessoal, conta técnica como autor, plugin GLPI, webhook ou chamadas externas nesta entrega.
+API versionada `/api/integration/v1`, habilitada por padrão (ausente/true; false desabilita explicitamente; inválido impede startup), exclusivamente para chamadas entre servidores autenticadas por Bearer revogável/expirável e com escopos. Sem cookie pessoal, conta técnica como autor, plugin GLPI, webhook ou chamadas externas nesta entrega.
 
 Disponível: busca de produtos sem caixa/acentos e por identificação (inclusive sem saldo), saldo/distribuição, armários para entrada/saída, cadastro explícito sem estoque, entrada/saída vinculadas a instância/chamado/usuário externo, consulta do resultado idempotente e histórico por chamado com estornos. Vínculo explícito com funcionário ativo obrigatório nas escritas. Reutiliza os serviços operacionais e a regra vigente de unidades inteiras, sem somar legado novamente.
 
@@ -229,3 +227,8 @@ Consulte o [diagnóstico, arquitetura e atualização/recuperação](docs/integr
 ## Notas fiscais
 
 A aba **Notas fiscais** armazena PDFs privados de até20MiB, avulsos ou vinculados a um produto, sem alterar estoque. Também aparece nos detalhes do produto (botão Armários). Requer migração006 e volume dedicado `invoices` montado na API; no desenvolvimento nativo use `INVOICE_STORAGE_DIR`. Consulte [uso, endpoints, configuração, integridade e backup coordenado](docs/notas-fiscais.md) e [verificações e pendências](docs/notas-fiscais-verificacao.md). Backup só do PostgreSQL não inclui os documentos.
+
+
+## Primeiro acesso e integração — atualização30/10/2026
+
+Aplicar a migração007 antes de iniciar a versão nova. Em banco vazio, entrar com admin/admin, concluir a troca obrigatória e entrar novamente; com qualquer funcionário existente não há criação/reset automático. A API de integração já vem habilitada, continua exigindo Bearer/escopos/vínculos e respeita false explícito em ambientes antigos. Veja [fluxo, configuração, atualização e risco da credencial temporária](docs/primeiro-acesso.md) e [verificações](docs/primeiro-acesso-verificacao.md). Nenhum servidor ou .env real foi atualizado pelo agente.

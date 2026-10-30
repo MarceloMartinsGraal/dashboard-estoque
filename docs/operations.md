@@ -35,13 +35,12 @@ Após preparar `.env` e o domínio, em janela autorizada:
 docker compose build
 docker compose up -d --wait db
 docker compose run --rm --no-deps api node dist/backend/migrate.js
-docker compose run --rm --no-deps api node dist/backend/bootstrap.js
 docker compose up -d api nginx
 ```
 
-Migrações **não** são executadas automaticamente ao iniciar API. A CLI usa um lock de migração e verifica checksum dos arquivos aplicados; nunca edite migrações já aplicadas. Há cinco migrações versionadas (001 a005). A004 descontinua metros e exige conciliação prévia se houver frações; a005 cria a preparação de integração sem credenciais. Esta manutenção não cria nem modifica migrações.
+Migrações **não** são executadas automaticamente ao iniciar API. A CLI usa um lock de migração e verifica checksum dos arquivos aplicados; nunca edite migrações já aplicadas. Há sete migrações versionadas (001 a007). A004 descontinua metros e exige conciliação prévia se houver frações; a005 cria a preparação de integração sem credenciais. A006 acrescenta documentos privados e a007 a pendência do primeiro acesso; migrações anteriores permanecem intactas.
 
-O primeiro responsável tem conta individual. Somente responsáveis designados administram contas; funcionários têm permissões operacionais completas. Não compartilhar contas. Não publicar sem definir quem assume essa responsabilidade.
+Após migração007 e startup de banco vazio, admin/admin é temporário: concluir a troca obrigatória e novo login antes de expor o sistema. Com qualquer funcionário existente não há criação/reset. O primeiro responsável passa a ter conta individual. Somente responsáveis designados administram contas; funcionários têm permissões operacionais completas. Não compartilhar contas. Não publicar sem definir quem assume essa responsabilidade.
 
 A aplicação roda como usuário `node`, com filesystem somente leitura, `/tmp` temporário, capabilities removidas e `no-new-privileges`. Banco e API ficam na rede interna. Nginx é o único ponto público. Health check retorna apenas estado, sem versão ou credenciais.
 
@@ -88,3 +87,5 @@ Confira também soma do livro por produto/localização, histórico de estornos,
 ## Pendências humanas
 
 Domínio/DNS e configuração do servidor; aprovação de retenção e restauração; responsável pelas contas; revisão das identidades, possíveis duplicatas, unidades e datas da auditoria; contagem física por produto/armário e data de corte. A importação legada é revisão histórica e não homologa essas pendências.
+
+Procedimento atualizado30/10: [primeiro acesso, configuração da integração, migração e recuperação](primeiro-acesso.md). Preservar false explícito; nenhuma conta existente é redefinida.

@@ -10,7 +10,7 @@ Sem estoque paralelo, edição de saldo, importação, aprovação de abertura, 
 
 ## Ativação e autenticação
 
-`INTEGRATION_ENABLED=false` é o padrão, inclusive se a variável não existir. Somente o texto exato `true` habilita. A migração 005 cria tabelas vazias; clientes novos são inativos por padrão. Nenhum segredo é lido de `.env` para esta autenticação: o banco guarda apenas SHA-256 de segredo aleatório de 256 bits, identificação do cliente, instância, permissões e validade obrigatória. SHA-256 é usado para segredo de alta entropia; senhas pessoais continuam Argon2.
+Atualização30/10: variável ausente ou texto exato `true` habilita. `false` desabilita explicitamente; qualquer outro valor (inclusive vazio) falha na inicialização com erro de configuração. A migração 005 cria tabelas vazias; clientes novos são inativos por padrão. Nenhum segredo é lido de `.env` para esta autenticação: o banco guarda apenas SHA-256 de segredo aleatório de 256 bits, identificação do cliente, instância, permissões e validade obrigatória. SHA-256 é usado para segredo de alta entropia; senhas pessoais continuam Argon2.
 
 Formato: `Authorization: Bearer <uuid-do-cliente>.<segredo-hex-64>`. Os placeholders não são credenciais. Transporte HTTPS é obrigatório na produção. HTTP é permitido em loopback e na homologação privada explicitamente configurada pelo [procedimento existente](../configuracao-automatica.md). Nenhum token/cookie deve ir em query string ou logs. Não há CORS/browser plugin nesta etapa: o servidor PHP do plugin faz a chamada. Cookies pessoais não autenticam integração e essas rotas não criam/leem sessões; apenas nelas o CSRF por cookie não se aplica. Nas rotas pessoais, sessão e CSRF permanecem obrigatórios e Bearer não os substitui.
 
@@ -138,7 +138,7 @@ Os testes e o simulador aplicam as migrações automaticamente **nesse banco de 
 
 O simulador sobe sua própria API em porta aleatória de loopback, cria fixtures e uma credencial efêmera e a revoga ao terminar. Demonstra cadastro explícito, busca, base zero do cadastro, entrada de 2, replay da mesma entrada, saída de 1 e consulta de resultado/histórico. A saída esperada inclui `simulatedOnly: true`, `balance: "1.000"` e `history: 2`; IDs variam. Não imprime segredo, não depende de GLPI e não chama rede externa. As fixtures permanecem no banco descartável.
 
-Para a futura implantação Docker, a opção precisa ser passada explicitamente ao processo da API (por exemplo `INTEGRATION_ENABLED=true` em override revisado); não é ativada automaticamente pelo .env do host. Manter desabilitada em produção nesta etapa. Sem alteração de Nginx ou publicação nesta entrega.
+Os Compose de produção/dev/homologação encaminham a variável ao processo com padrão true, preservando false explícito e valores inválidos. Habilitar continua exigindo credenciais/escopos/vínculos; não configura o plugin nem publica serviços automaticamente. Veja [primeiro acesso/configuração](../primeiro-acesso.md).
 
 ### Credencial local de teste no Docker de desenvolvimento
 
@@ -146,7 +146,7 @@ Passo a passo para chamar a API pelo `compose.dev.yaml` (`http://localhost:8080`
 
 Use um único terminal PowerShell, na raiz do repositório, do início ao fim: o segredo fica só em variáveis da sessão e não é exibido.
 
-**1. Subir a pilha com a integração habilitada.** O override `compose.dev.integration.yaml` apenas define `INTEGRATION_ENABLED=true` na API; a migração 005 é aplicada pelo serviço `migrate`. Não use `down -v`.
+**1. Subir a pilha com a integração habilitada.** O Compose já habilita por padrão; o override legado continua compatível e respeita false explícito. A migração005 cria o contrato e007 protege o primeiro acesso; o serviço migrate aplica as pendentes. Não use `down -v`.
 
 ```powershell
 docker compose -f compose.dev.yaml -f compose.dev.integration.yaml up -d --build --wait
@@ -307,3 +307,5 @@ Códigos: INVALID_INPUT(400), UNAUTHENTICATED(401), FORBIDDEN(403), NOT_FOUND(40
 GET operations retorna 404 enquanto a transação ainda não confirmou e também para uma chave inexistente na instância. Isso não comprova rejeição de uma escrita cujo resultado se perdeu. Aguarde e consulte novamente; mantenha a mesma intenção/chave e o fluxo atual de recuperação. POST simultâneo com mesma chave espera o lock, revalida autorização e retorna o resultado original após commit. Sem reservas parciais persistidas, sem nova chave automática. Uma falha na consulta continua sendo falha, nunca lista vazia.
 
 Atualizar apenas o backend é suficiente para esta revisão; plugin 0.1.8 aceita os campos aditivos e mantém seu tratamento de erros. Nenhuma migração nova. Procedimento de atualização/recuperação e limites de testes: [api-reconstrucao.md](api-reconstrucao.md).
+
+Administrador ou funcionário com must_change_password=true não pode provisionar credencial/vínculo nem operar pela integração. Contas existentes recebem false na migração007, sem alteração de senha.

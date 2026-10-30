@@ -33,6 +33,7 @@ export class SafeErrors implements ExceptionFilter {
                 details = { code: 'PRODUCT_CANDIDATES', candidateIds: response.candidateIds };
             }
             if(status===409 && typeof response==='object' && 'code' in response && response.code==='INVOICE_DUPLICATE' && 'documentId' in response && uuid.safeParse(response.documentId).success)details={code:'INVOICE_DUPLICATE',documentId:response.documentId as string};
+            if(status===403 && typeof response==='object' && 'code' in response && response.code==='PASSWORD_CHANGE_REQUIRED')details={code:'PASSWORD_CHANGE_REQUIRED'};
         }
         else if (error?.type === 'entity.parse.failed' || error?.type === 'entity.too.large') {
             status = error.type === 'entity.too.large' ? 413 : 400;

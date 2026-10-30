@@ -111,7 +111,8 @@ def configure_env(root,args,available):
     need(env["POSTGRES_USER"]!="graal_app","Dono do banco não pode ser graal_app.")
     need(re.fullmatch(r"[a-f0-9]{64,}",env["DB_APP_PASSWORD"]),"DB_APP_PASSWORD deve ser hexadecimal com ao menos 64 caracteres.")
     need(len(env["SESSION_SECRET"])>=32,"SESSION_SECRET curto.")
-    need(env["NODE_ENV"] in ("development","test") and env["INTEGRATION_ENABLED"]=="true","Homologação requer NODE_ENV development/test e INTEGRATION_ENABLED=true.")
+    need(env["NODE_ENV"] in ("development","test"),"Homologação requer NODE_ENV development/test.")
+    need(env["INTEGRATION_ENABLED"] in ("true","false"),"INTEGRATION_ENABLED deve ser true ou false.")
     env.setdefault("DATABASE_URL",f"postgresql://graal_app:{env['DB_APP_PASSWORD']}@db:5432/{env['POSTGRES_DB']}")
     for attr,key in {"glpi_host":"GLPI_SSH_HOST","glpi_user":"GLPI_SSH_USER","glpi_port":"GLPI_SSH_PORT","ssh_key":"GLPI_SSH_KEY","glpi_dir":"GLPI_DIR","web_user":"GLPI_WEB_USER","instance":"GLPI_INSTANCE_ID"}.items():
         value=getattr(args,attr,None)
@@ -176,11 +177,10 @@ def provision(root,env,args):
         out=run_command(compose_command(root,env,["run","--rm","-T","--no-deps","api","node","scripts/provision-integration.cjs"]),input_text=json.dumps(data),cwd=root)
         try:return json.loads(out.stdout)
         except ValueError:raise SetupError("Resposta administrativa inválida; segredo não será exibido.")
-    admins=call({"operation":"list-admins"})["items"]
-    if not admins:
-        need(sys.stdin.isatty(),"Execute o bootstrap interativo para criar o primeiro responsável.")
-        run_command(compose_command(root,env,["run","--rm","api","node","dist/backend/bootstrap.js"]),capture=False,cwd=root)
-        admins=call({"operation":"list-admins"})["items"]
+    result=call({"operation":"list-admins"})
+    need(not result.get("requiresFirstAccess",False),"Conclua o primeiro acesso e a troca de senha no dashboard antes de provisionar a integração. Nenhuma credencial foi criada.")
+    admins=result["items"]
+    need(admins,"Nenhum responsável ativo e apto. Use a administração de contas; não recrie o bootstrap em banco já configurado.")
     for item in admins:print("Responsável:",item["username"],item["id"])
     admin=ask(args.admin_id,"UUID do responsável que autoriza a integração")
     raw=root/env["INTEGRATION_TOKEN_FILE"];need(not raw.is_symlink(),"Arquivo de credencial não pode ser link.")
@@ -287,6 +287,7 @@ def main(argv=None):
         print("Construindo imagens e iniciando serviços; aguarde.")
         run_command(compose_command(ROOT,env,["up","-d","--build","--wait","--wait-timeout","240"]),cwd=ROOT)
         print("Dashboard iniciado:",env["PUBLIC_ORIGIN"])
+        if env["INTEGRATION_ENABLED"]=="false":print("Integração explicitamente desabilitada; GLPI e credenciais não foram alterados.");return
         if args.skip_glpi:print("GLPI não acessado. Reexecute sem --skip-glpi para configurar.");return
         for key,prompt in [("GLPI_SSH_HOST","Host SSH do GLPI"),("GLPI_SSH_USER","Usuário SSH do GLPI")]:
             if not env.get(key):

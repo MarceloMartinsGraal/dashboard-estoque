@@ -8,7 +8,7 @@ Estado: instruções revisadas, sem deploy, publicação, credenciais reais ou a
 2. Para ensaio sem publicação, usar compose.dev.yaml em projeto exclusivo e banco/volume novos. O frontend fica ligado somente a 127.0.0.1:8080. Acessar por túnel SSH, abrir http://localhost:8080 na máquina administrativa e preservar exatamente essa origem; não abrir a porta8080 no firewall nem usar HTTP público.
 3. Preencher os três segredos obrigatórios no arquivo local e dar chmod600. Não registrar segredos. Manter INTEGRATION_ENABLED=false; não aplicar compose.dev.integration.yaml nesta preparação.
 4. Construir/subir com nome exclusivo: `docker compose -p NOME_EXCLUSIVO -f compose.dev.yaml up -d --build --wait`. O banco tem health check; migrate aplica as migrações e deve terminar com código0; somente depois inicia API, cujo health check libera web. Falta de segredo obrigatório impede a interpolação do Compose.
-5. Confirmar logs/status antes de primeiro acesso: `docker compose -p NOME_EXCLUSIVO -f compose.dev.yaml ps -a`; `docker compose -p NOME_EXCLUSIVO -f compose.dev.yaml logs --tail=100 migrate api`. Rodar bootstrap interativo apenas nesse banco vazio com o mesmo projeto/arquivo.
+5. Confirmar logs/status antes de primeiro acesso: `docker compose -p NOME_EXCLUSIVO -f compose.dev.yaml ps -a`; `docker compose -p NOME_EXCLUSIVO -f compose.dev.yaml logs --tail=100 migrate api`. Concluir primeiro acesso/troca obrigatória se a API criou o administrador temporário nesse banco vazio, mantendo o mesmo projeto/arquivo.
 6. Ensaiar login/consulta/uma operação sintética/estorno com autorização, saída concorrente pelos testes automatizados e integração desabilitada503. Reiniciar a pilha privada e conferir persistência do volume do projeto e checksums das migrações. Não apagar volume nem banco existente para repetir ensaio; usar outro projeto novo.
 
 Cada comando Compose, inclusive bootstrap/logs/parada, deve repetir o mesmo `-p` e `-f`; omiti-los pode selecionar outra pilha. Sem acesso à API/banco pela internet. Interromper com down do projeto exclusivo, sem -v; isso preserva o volume para inspeção. Nenhuma rotina desta entrega apaga volumes.
@@ -42,3 +42,5 @@ A rotação json-file já está configurada no compose.yaml (10m x3 por serviço
 - paginação SQL das localizações da integração: hoje lista e pagina em memória. Alterar a consulta exige ensaio de equivalência e demanda medida; nesta manutenção apenas as buscas locais repetidas foram substituídas por Map.
 - Revisar escolha de digests de imagens e retenção/recuperação no servidor, após ensaio real; nenhuma alegação de ganho percentual ou prontidão para produção.
 - Plugin/interface GLPI, validação interna de acesso ao chamado, credenciais reais e homologação continuam separados.
+
+A opção false acima é uma desativação explícita para esse ensaio isolado. O padrão geral agora é habilitado; veja [primeiro acesso](primeiro-acesso.md).

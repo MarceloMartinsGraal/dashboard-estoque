@@ -1,3 +1,4 @@
+import { integrationEnabled } from '../config';
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { Request } from 'express';
@@ -15,7 +16,7 @@ declare global {
 const prefix = '/api/integration/v1';
 export const isIntegrationRequest = (req: Request) => req.path === prefix || req.path.startsWith(prefix + '/');
 export function enabled() {
-    if (process.env.INTEGRATION_ENABLED !== 'true')
+    if (!integrationEnabled())
         throw new ServiceUnavailableException('Integração desabilitada');
 }
 @Injectable()

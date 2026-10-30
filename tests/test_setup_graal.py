@@ -169,4 +169,31 @@ class SetupTests(unittest.TestCase):
                 with self.assertRaises(sg.SetupError):sg.run_command(sg.compose_command(root,{"COMPOSE_PROJECT_NAME":"teste"},["ps"]))
                 run.assert_not_called()
 
+    def test_explicit_false_preserved_and_skips_glpi(self):
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as tmp:
+            root=pathlib.Path(tmp);args=sg.arguments(["dashboard","--configure-only","--ip","192.168.1.5"])
+            sg.configure_env(root,args,["192.168.1.5"])
+            file=root/".env";file.write_text(file.read_text().replace("INTEGRATION_ENABLED='true'","INTEGRATION_ENABLED='false'"))
+            env=sg.configure_env(root,args,["192.168.1.5"]);self.assertEqual(env["INTEGRATION_ENABLED"],"false")
+            self.assertIn("INTEGRATION_ENABLED='false'",file.read_text())
+            with patch.object(sg.sys,"platform","linux"),patch.object(sg,"ROOT",root),patch.object(sg,"require_tools"),patch.object(sg,"discover_ips",return_value=["192.168.1.5"]),patch.object(sg,"run_command",return_value=SimpleNamespace(stdout="unix:///var/run/docker.sock")),patch.object(sg,"provision") as provision,patch.object(sg,"configure_remote") as remote:
+                sg.main(["dashboard","--ip","192.168.1.5"])
+                provision.assert_not_called();remote.assert_not_called()
+
+    def test_invalid_integration_flag_preserves_existing_env(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=pathlib.Path(tmp);args=sg.arguments(["dashboard","--configure-only","--ip","192.168.1.5"])
+            sg.configure_env(root,args,["192.168.1.5"]);file=root/".env"
+            file.write_text(file.read_text().replace("INTEGRATION_ENABLED='true'","INTEGRATION_ENABLED='invalid'"));original=file.read_bytes()
+            with self.assertRaisesRegex(sg.SetupError,"INTEGRATION_ENABLED"):sg.configure_env(root,args,["192.168.1.5"])
+            self.assertEqual(file.read_bytes(),original)
+
+    def test_pending_first_access_stops_provision_without_prompt(self):
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(sg,"run_command",return_value=SimpleNamespace(stdout=json.dumps({"items":[],"requiresFirstAccess":True}))) as run,patch.object(sg,"ask") as ask:
+                with self.assertRaisesRegex(sg.SetupError,"primeiro acesso"):sg.provision(pathlib.Path(tmp),{"COMPOSE_PROJECT_NAME":"teste"},sg.arguments(["dashboard"]))
+                ask.assert_not_called();self.assertEqual(run.call_count,1)
+
 if __name__=="__main__":unittest.main()

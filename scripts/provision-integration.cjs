@@ -13,8 +13,8 @@ async function provision(db,data){
  await db.query('BEGIN');
  try{
   await db.query('SELECT pg_advisory_xact_lock(hashtext($1))',['graal-setup:'+data.instanceId]);
-  const admin=(await db.query('SELECT id FROM employees WHERE id=$1 AND active AND manages_accounts FOR SHARE',[data.adminId])).rows[0];
-  check(admin,'Responsável deve ser ativo e administrar contas');
+  const admin=(await db.query('SELECT id FROM employees WHERE id=$1 AND active AND manages_accounts AND NOT must_change_password FOR SHARE',[data.adminId])).rows[0];
+  check(admin,'Responsável deve ser ativo, administrar contas e concluir o primeiro acesso');
   let id,secret,token=data.existingToken;
   if(token){
    check(typeof token==='string'&&/^[a-f0-9-]{36}\.[a-f0-9]{64}$/.test(token),'Formato da credencial inválido');
@@ -32,7 +32,7 @@ async function provision(db,data){
    await db.query("INSERT INTO audit_log(actor_id,action,entity,entity_id,details) VALUES($1,'configurar_integracao','integration_client',$2,$3)",[data.adminId,id,JSON.stringify({instanceId:data.instanceId,validDays:data.validDays,source:'setup_homologacao'})]);
   }
   for(const link of data.links){
-   check((await db.query('SELECT id FROM employees WHERE id=$1 AND active FOR SHARE',[link.employeeId])).rows.length,'Funcionário do vínculo inativo ou inexistente');
+   check((await db.query('SELECT id FROM employees WHERE id=$1 AND active AND NOT must_change_password FOR SHARE',[link.employeeId])).rows.length,'Funcionário do vínculo inativo, inexistente ou com primeiro acesso pendente');
    const old=(await db.query('SELECT employee_id,active FROM external_employee_links WHERE instance_id=$1 AND external_user_id=$2 FOR UPDATE',[data.instanceId,link.externalUserId])).rows[0];
    check(!old||(old.active&&old.employee_id===link.employeeId),'Vínculo existente difere; alteração exige revisão explícita');
    if(!old){
@@ -43,7 +43,12 @@ async function provision(db,data){
   await db.query('COMMIT');return {token};
  }catch(e){await db.query('ROLLBACK');throw e;}
 }
-module.exports={provision};
+async function listAdmins(db){
+ const rows=(await db.query('SELECT id,username,must_change_password FROM employees WHERE active AND manages_accounts ORDER BY username')).rows;
+ const items=rows.filter(r=>!r.must_change_password).map(({id,username})=>({id,username}));
+ return {items,requiresFirstAccess:!items.length&&rows.some(r=>r.must_change_password)};
+}
+module.exports={provision,listAdmins};
 if(require.main===module)(async()=>{
  let raw='';for await(const chunk of process.stdin){raw+=chunk;if(raw.length>65536)throw Error('Entrada grande');}
  const data=JSON.parse(raw);const {Pool}=require('pg');const pool=new Pool({connectionString:process.env.DATABASE_URL});
@@ -51,7 +56,7 @@ if(require.main===module)(async()=>{
  try{
   client=await pool.connect();
   const result=data.operation==='list-admins'
-   ?{items:(await client.query('SELECT id,username FROM employees WHERE active AND manages_accounts ORDER BY username')).rows}
+   ?await listAdmins(client)
    :await provision(client,data);
   process.stdout.write(JSON.stringify(result)+'\n');
  }finally{client?.release();await pool.end();}

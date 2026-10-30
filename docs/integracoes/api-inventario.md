@@ -60,7 +60,7 @@ Este inventário descreve os formatos existentes; não os uniformiza silenciosam
 - `scripts/simulate-integration.cjs`: usa os endpoints v1 por HTTP loopback contra PostgreSQL descartável.
 - `scripts/setup_graal.py` e scripts Bash: sondam /api/health; orquestram Compose explícito e helper de provisionamento. Não precisam mudar com a separação de arquivos.
 - `scripts/provision-integration.cjs`: CLI administrativa, acessa PostgreSQL por conexão privada/stdin; não é endpoint HTTP e não é executado pelo frontend/plugin. Mantém credenciais/vínculos/auditoria transacionais e não cria movimentos.
-- `bootstrap` e `migrate`: CLIs locais/administrativas, não endpoints. Cinco migrações existentes e seus checksums preservados.
+- `bootstrap` e `migrate`: CLIs locais/administrativas, não endpoints. Sete migrações versionadas; as aplicadas conservam seus checksums.
 - Plugin `ajax/endpoint.php`: POST local GLPI com sessão, acesso ao chamado e CSRF. search/product_options/matches/balances/locations/history chamam API; prepare/execute/recover orquestram intenções; intent/intents consultam armazenamento GLPI. `GlpiIntentStore::recent` usa somente tabelas locais GLPI.
 - Assets JS/CSS/SVG: servidos pelo GLPI; não são endpoints do dashboard. Falhas instaladas de cache, empacotamento, permissões de arquivos ou URLs precisam de evidência própria.
 
@@ -68,3 +68,8 @@ Este inventário descreve os formatos existentes; não os uniformiza silenciosam
 ## Acréscimo documental — Notas fiscais
 
 Rotas nativas autenticadas `/api/invoices` (GET listagem, POST binário), `/api/invoices/:id` (GET metadados, POST revisão), `/api/invoices/:id/file` (GET inline/attachment), `/api/invoices/products` e `/api/invoices/products/:id` (GET seleção completa). Sessão/CSRF e parâmetros/erros detalhados em [Notas fiscais](../notas-fiscais.md). Esses endpoints não fazem parte da integração v1, não aceitam a credencial do plugin e não alteram seu contrato OpenAPI.
+
+
+## Primeiro acesso — atualização30/10
+
+Login e GET /api/auth/me acrescentam must_change_password. POST /api/auth/change-password (sessão+CSRF; JSON password/confirmPassword) aceita somente pendência, exige senha12..128, confirma e revoga sessões; resposta201 {ok:true,loginRequired:true}; erros400/401/403/409/500. Com pendência, somente me/troca/logout são permitidos dentre as rotas autenticadas; demais recebem403 PASSWORD_CHANGE_REQUIRED. Health/CSRF/login mantêm regras próprias. Integração ausente/true vem habilitada; false explícito mantém503, inválido impede startup. Habilitação não remove Bearer/escopos/vínculos e não cria credenciais.

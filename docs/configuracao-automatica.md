@@ -21,7 +21,7 @@ Se houver várias interfaces privadas, acrescente --ip IP_DO_DASHBOARD. A porta 
 O script:
 1. Detecta o IP e prepara .env com três segredos independentes.
 2. Valida o Compose, constrói as imagens e inicia banco, migrações, API e Nginx.
-3. Orienta o bootstrap interativo do primeiro responsável se o banco estiver vazio.
+3. API cria o primeiro administrador temporário somente se não existir funcionário. O script para antes de provisionar se esse responsável ainda precisar concluir o primeiro acesso; após trocar a senha, reexecutar com o mesmo .env.
 4. Pede o UUID do responsável para auditar o provisionamento da integração.
 5. Gera uma credencial com validade de 30 dias, ou reutiliza a válida anteriormente guardada.
 6. Empacota o plugin, transfere arquivos por SSH e executa configurar-glpi.sh no servidor GLPI.
@@ -69,7 +69,7 @@ O Compose de homologação publica só o Nginx na interface privada escolhida. P
 
 O script preserva comentários, valores desconhecidos e segredos. Não usa source ou eval para ler o arquivo.
 
-Se o .env não foi criado por este instalador, ele para antes de alterar. --adopt-env permite adotar explicitamente um arquivo completo de homologação, com NODE_ENV development/test, IP/projeto explícitos e segredos já preenchidos. PUBLIC_ORIGIN precisa corresponder ao IP/porta; INTEGRATION_ENABLED deve estar true. Confira o projeto e os volumes existentes antes de adotar: não use essa opção para migrar silenciosamente uma instalação.
+Se o .env não foi criado por este instalador, ele para antes de alterar. --adopt-env permite adotar explicitamente um arquivo completo de homologação, com NODE_ENV development/test, IP/projeto explícitos e segredos já preenchidos. PUBLIC_ORIGIN precisa corresponder ao IP/porta; INTEGRATION_ENABLED aceita true/false; false preservado não provisiona GLPI. Confira o projeto e os volumes existentes antes de adotar: não use essa opção para migrar silenciosamente uma instalação.
 
 Senhas vazias em .env existente não são geradas automaticamente, pois um volume já pode depender de outros valores. Mudar .env não altera senha de PostgreSQL inicializado.
 
@@ -158,3 +158,5 @@ Testes de orquestração substituem Docker e SSH por executores simulados. Teste
 - [Precedência de variáveis do Docker Compose](https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/).
 
 Nenhum commit, push, deploy ou configuração de servidor foi executado nesta entrega.
+
+Atualização30/10: [primeiro acesso e integração por padrão](primeiro-acesso.md). O setup preserva false explícito e encerra sem GLPI/credenciais quando desabilitado; valor inválido impede gravação. Administrador pendente não aparece como apto na CLI e não pode autorizar integração.

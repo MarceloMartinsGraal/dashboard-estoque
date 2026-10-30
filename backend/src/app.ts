@@ -1,3 +1,5 @@
+import { integrationEnabled } from './config';
+import { ensureInitialAccount } from './initial-account';
 import { InvoiceController } from './invoices/controller';
 import { InvoiceService } from './invoices/service';
 import { InvoiceStorage } from './invoices/storage';
@@ -79,6 +81,7 @@ class InvoiceModule {}
 })
 class AppModule {}
 export async function createApp() {
+  integrationEnabled();
   const secret = process.env.SESSION_SECRET;
   const origin = process.env.PUBLIC_ORIGIN;
   const production = process.env.NODE_ENV === 'production';
@@ -93,6 +96,7 @@ export async function createApp() {
     logger: false,
     bodyParser: false,
   });
+  try {await ensureInitialAccount(app.get(Database));}catch(error){await app.close();throw error;}
   app.setGlobalPrefix('api');
   app.useGlobalFilters(new SafeErrors());
   const express = app.getHttpAdapter().getInstance();

@@ -8,6 +8,7 @@ COPY tests ./tests
 RUN npm run build
 
 FROM build AS test
+COPY scripts/test-first-access-browser.cjs ./scripts/test-first-access-browser.cjs
 COPY scripts/test-invoices-browser.cjs ./scripts/test-invoices-browser.cjs
 COPY docs/integracoes/integration-v1.openapi.json ./docs/integracoes/integration-v1.openapi.json
 COPY scripts/provision-integration.cjs ./scripts/provision-integration.cjs

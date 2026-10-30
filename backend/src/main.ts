@@ -1,3 +1,4 @@
+import { ConfigurationError } from './config';
 import { logProcessFailure } from './diagnostics';
 import { createApp } from './app';
 createApp()
@@ -11,7 +12,7 @@ createApp()
       ),
     );
     console.error(
-      'Não foi possível iniciar. Confira configuração e migrações.',
+      error instanceof ConfigurationError ? error.message : 'Não foi possível iniciar. Confira configuração e migrações.',
     );
     process.exitCode = 1;
   });

@@ -56,7 +56,7 @@ export class StockService {
     if (
       !(
         await client.query(
-          'SELECT id FROM employees WHERE id=$1 AND active FOR SHARE',
+          'SELECT id FROM employees WHERE id=$1 AND active AND NOT must_change_password FOR SHARE',
           [actor],
         )
       ).rowCount

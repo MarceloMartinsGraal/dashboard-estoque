@@ -17,7 +17,7 @@ const select = `SELECT d.id,d.name,d.original_name AS "originalName",d.byte_size
 @Injectable()
 export class InvoiceService {
     constructor(private readonly db: Database, private readonly storage: InvoiceStorage, private readonly products: ProductService) { }
-    private async actor(c: PoolClient, id: string, version: string | undefined) { if (!(await c.query('SELECT id FROM employees WHERE id=$1 AND active AND session_version::text=$2 FOR SHARE', [id, version ?? null])).rowCount)
+    private async actor(c: PoolClient, id: string, version: string | undefined) { if (!(await c.query('SELECT id FROM employees WHERE id=$1 AND active AND NOT must_change_password AND session_version::text=$2 FOR SHARE', [id, version ?? null])).rowCount)
         throw new ForbiddenException('Sessão revogada ou funcionário inativo. Entre novamente.'); }
     private async product(c: PoolClient, id: string | null, confirm: boolean) {
         if (!id)

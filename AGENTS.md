@@ -130,7 +130,7 @@ Regras:
 ## 7. Autenticação e permissões
 
 - Cada funcionário utiliza sua própria conta.
-- Não criar contas compartilhadas ou senhas padrão.
+- Não criar contas compartilhadas ou senhas padrão fora da exceção de primeiro acesso: decisão explícita de30/10/2026 autoriza admin/admin somente em banco sem qualquer funcionário, com troca obrigatória antes de operação normal. Contas existentes, inclusive inativas, nunca são redefinidas. Senha nova e demais cadastros mantêm mínimo12 caracteres; não criar recuperação por senha padrão.
 - Todos os funcionários autenticados possuem permissões operacionais completas.
 - Administração de contas deve ter política explícita; não presumir que acesso operacional inclua gestão de usuários.
 - Aplicar autenticação e autorização no backend.
