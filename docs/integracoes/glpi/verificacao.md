@@ -175,3 +175,6 @@ O segundo comando requer PHP/cURL/mbstring no PATH; PHP_BINARY/PHP_EXTENSION_DIR
 ## Configuração assistida 0.1.8
 
 Novos testes locais cobrem HTTP privado opt-in, formulário e orquestração simulada. Consulte docs/configuracao-automatica-verificacao.md no repositório. Instalação no GLPI real e persistência cifrada ainda não foram homologadas nesta entrega.
+
+
+Atualização0.1.11: validação identifica motivos controlados (instance-mismatch, invalid-url, invalid-token, invalid-fields etc.) sem exibir entrada ou exceção remota. Fixture passou a carregar a configuração pré-existente; teste reproduz rejeição de instância diferente, sem gravar ou apagar o estado anterior. Isso não comprova que esse seja o motivo no servidor. Diagnóstico do servidor ainda necessário antes de modificar identidade, credencial ou configuração. 61 testes Python e contrato PHP/cURL passaram localmente.

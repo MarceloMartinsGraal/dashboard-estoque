@@ -282,4 +282,11 @@ class SetupTests(unittest.TestCase):
         for phase in [[],{},None,True,42]:
             self.assertIsNone(sg.safe_diagnostic("GRAAL_DIAGNOSTIC "+json.dumps({"phase":phase})))
 
+    def test_validation_reason_is_preserved_without_untrusted_values(self):
+        diag=sg.safe_diagnostic('GRAAL_DIAGNOSTIC {"phase":"payload-validation","reason":"instance-mismatch"}')
+        self.assertEqual(diag["reason"],"instance-mismatch")
+        for bad in ["secret-value",[],{},42]:
+            result=sg.safe_diagnostic('GRAAL_DIAGNOSTIC '+json.dumps(dict(phase="payload-validation",reason=bad)))
+            self.assertNotIn("reason",result)
+
 if __name__=="__main__":unittest.main()

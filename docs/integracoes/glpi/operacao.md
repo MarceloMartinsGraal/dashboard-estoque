@@ -174,3 +174,6 @@ Cadastro não cria quantidade. Novo produto da integração continua com base ze
 ## Configuração assistida em homologação (plugin 0.1.8)
 
 O script scripts/configurar-dashboard.sh prepara HTTP por IP privado e executa configurar-glpi.sh por SSH. Consulte docs/configuracao-automatica.md no repositório do dashboard. HTTP privado exige deployment_mode=homologacao e private_http explícito; produção mantém HTTPS. O ZIP inclui helper CLI protegido em tools/configure-cli.php. Não usar o arquivo .env inteiro como payload.
+
+
+Atualização0.1.11: validação identifica motivos controlados (instance-mismatch, invalid-url, invalid-token, invalid-fields etc.) sem exibir entrada ou exceção remota. Fixture passou a carregar a configuração pré-existente; teste reproduz rejeição de instância diferente, sem gravar ou apagar o estado anterior. Isso não comprova que esse seja o motivo no servidor. Diagnóstico do servidor ainda necessário antes de modificar identidade, credencial ou configuração. 61 testes Python e contrato PHP/cURL passaram localmente.

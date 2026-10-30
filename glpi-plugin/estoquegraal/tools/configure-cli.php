@@ -79,6 +79,20 @@ try {
 }catch(\Throwable $e){
     // Somente metadados controlados: nenhuma mensagem remota, corpo ou credencial.
     $diagnostic=['phase'=>$phase];
+    $reasons=[
+        'Instância existente diferente; revisão manual necessária'=>'instance-mismatch',
+        'Campos inválidos'=>'invalid-fields','Ação inválida'=>'invalid-action',
+        'Entrada grande'=>'payload-too-large','Entrada inválida'=>'invalid-input',
+        'Flag local inválida'=>'invalid-local-flag','HTTP local exige loopback'=>'invalid-loopback',
+        'URL inválida. Use HTTPS; HTTP privado exige homologação explícita e IPv4 RFC1918.'=>'invalid-url',
+        'Modo de implantação inválido.'=>'invalid-mode',
+        'HTTP privado exige modo homologação. Produção requer HTTPS.'=>'invalid-http-mode',
+        'Identificador da instância inválido.'=>'invalid-instance',
+        'Credencial de integração não configurada ou inválida.'=>'invalid-token',
+        'Timeout inválido (total de 1 a 30 segundos).'=>'invalid-timeout',
+        'Integração inativa. Solicite configuração ao administrador.'=>'disabled'
+    ];
+    if($phase==='payload-validation')$diagnostic['reason']=$reasons[$e->getMessage()]??($e instanceof \JsonException?'invalid-json':'validation-exception');
     if($e instanceof \EstoqueGraal\PluginError)$diagnostic['status']=$e->status;
     fwrite(STDERR,'GRAAL_DIAGNOSTIC '.json_encode($diagnostic,JSON_THROW_ON_ERROR)."\n");
     fwrite(STDERR,"Configuração CLI recusada. Confira versão 11.0.5, chave GLPI, instância e conectividade da API; preserve o backup.\n");

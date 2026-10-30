@@ -76,3 +76,6 @@ O resultado informa a etapa controlada (resources/kernel/security/read-config/pa
 Depois de resolver a causa identificada, o comando normal retoma usando a credencial existente. Não repita a instalação como diagnóstico. Backend permanece inalterado, plugin/helper agora0.1.10, sem nova migração. Uma ativação manual bem-sucedida não prova sucesso das etapas de backup/aplicação/verificação/cache; o instalador pode desativar o plugin ao falhar depois da ativação.
 
 Verificação local da atualização: 60 testes Python e contrato PHP real/cURL com API sintética (probe sem persistência, resposta403 identificada e token ausente do diagnóstico). GLPI Kernel/Config/DB e comandos de host são fixtures; causa instalada e homologação Ubuntu continuam pendentes. Não foi acessado servidor.
+
+
+Atualização0.1.11: validação identifica motivos controlados (instance-mismatch, invalid-url, invalid-token, invalid-fields etc.) sem exibir entrada ou exceção remota. Fixture passou a carregar a configuração pré-existente; teste reproduz rejeição de instância diferente, sem gravar ou apagar o estado anterior. Isso não comprova que esse seja o motivo no servidor. Diagnóstico do servidor ainda necessário antes de modificar identidade, credencial ou configuração. 61 testes Python e contrato PHP/cURL passaram localmente.

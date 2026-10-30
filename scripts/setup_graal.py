@@ -4,6 +4,7 @@ import argparse, contextlib, datetime, hashlib, ipaddress, json, os, pathlib, re
 import secrets, shlex, shutil, socket, stat, subprocess, sys, tarfile, tempfile, zipfile
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 DIAGNOSTIC_PHASES={"bootstrap","resources","kernel","security","read-config","payload-validation","api-read","persist","verify-persist","commit","version","backup","status","deactivate","install","activate","cache-clear"}
+DIAGNOSTIC_REASONS={"instance-mismatch","invalid-fields","invalid-action","payload-too-large","invalid-input","invalid-local-flag","invalid-loopback","invalid-url","invalid-mode","invalid-http-mode","invalid-instance","invalid-token","invalid-timeout","disabled","invalid-json","validation-exception"}
 class SetupError(Exception):
     def __init__(self,message,diagnostic=None):
         super().__init__(message);self.diagnostic=diagnostic
@@ -16,6 +17,7 @@ def safe_diagnostic(raw):
         if not isinstance(value,dict) or not isinstance(value.get("phase"),str) or value["phase"] not in DIAGNOSTIC_PHASES:continue
         result={"phase":value["phase"]}
         if type(value.get("status")) is int and 100<=value["status"]<=599:result["status"]=value["status"]
+        if isinstance(value.get("reason"),str) and value["reason"] in DIAGNOSTIC_REASONS:result["reason"]=value["reason"]
         return result
     return None
 
@@ -54,6 +56,7 @@ def run_command(cmd,*,input_text=None,capture=True,cwd=None):
     except (subprocess.CalledProcessError,OSError) as exc:
         diagnostic=safe_diagnostic(getattr(exc,"stderr",None))
         detail=(f" Etapa: {diagnostic['phase']}."+(f" HTTP {diagnostic['status']}." if 'status' in diagnostic else "")) if diagnostic else ""
+        if diagnostic and "reason" in diagnostic:detail+=f" Motivo: {diagnostic['reason']}."
         raise SetupError(f"Falha em {pathlib.Path(str(cmd[0])).name}."+detail+" Nenhum segredo é exibido.",diagnostic) from None
 def atomic_write(path,text,mode=0o600):
     path=pathlib.Path(path);need(not path.is_symlink(),f"Link simbólico recusado: {path.name}")

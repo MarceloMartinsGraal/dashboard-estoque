@@ -7,7 +7,7 @@ fs.writeFileSync(path.join(root,'src/Glpi/Application/ResourcesChecker.php'),'<?
 fs.writeFileSync(path.join(root,'vendor/autoload.php'),`<?php
 namespace Glpi\\Kernel {class Kernel {function boot(){define('GLPI_VERSION','11.0.5');}}}
 namespace {class GLPIKey {function keyExists(){return true;}function isConfigSecured(...$a){return true;}function decrypt($s){return str_starts_with($s,'fixture:')?base64_decode(substr($s,8)):'';}}
-class Config {static array $v=[];static function getConfigurationValues(...$a){return self::$v;}static function setConfigurationValues($c,$v){$v['token']='fixture:'.base64_encode($v['token']);self::$v=$v;file_put_contents(getcwd().'/config.json',json_encode($v));}}
+class Config {static array $v=[];static function getConfigurationValues(...$a){if(!self::$v&&is_file(getcwd().'/config.json'))self::$v=json_decode(file_get_contents(getcwd().'/config.json'),true);return self::$v;}static function setConfigurationValues($c,$v){$v['token']='fixture:'.base64_encode($v['token']);self::$v=$v;file_put_contents(getcwd().'/config.json',json_encode($v));}}
 $DB=new class {function beginTransaction(){}function commit(){}function rollback(){}};}
 `);
 let reads=0;let apiStatus=200;const token='11111111-1111-4111-8111-111111111111.'+'a'.repeat(64);
@@ -19,6 +19,7 @@ const result=await invoke(payload);assert.equal(result.status,0);assert.equal(JS
 assert.equal((await invoke({...payload,local_http:false})).status,1);assert.equal((await invoke({...payload,base_url:'http://8.8.8.8/api/integration/v1'})).status,1);assert.equal((await invoke({...payload,local_http:'true'})).status,1);assert.equal(reads,1);
 const before=fs.readFileSync(path.join(root,'config.json'),'utf8');
 const probe=await invoke(payload,'probe');assert.equal(probe.status,0);assert.equal(JSON.parse(probe.out).readCheck,true);assert.equal(fs.readFileSync(path.join(root,'config.json'),'utf8'),before);
+const mismatch=await invoke({...payload,instance_id:'another-instance'},'probe');assert.equal(mismatch.status,1);assert.match(mismatch.err,/"reason":"instance-mismatch"/);assert.equal(fs.readFileSync(path.join(root,'config.json'),'utf8'),before);
 apiStatus=403;const denied=await invoke(payload,'probe');assert.equal(denied.status,1);assert.match(denied.err,/GRAAL_DIAGNOSTIC /);assert.match(denied.err,/"phase":"api-read"/);assert.match(denied.err,/"status":403/);assert.ok(!denied.err.includes(token));
 console.log('OK CLI PHP real: loopback explícito persistido, leitura cURL, recusa público HTTP/flag inválida; Kernel GLPI simulado.');
 }finally{server.closeAllConnections();await new Promise(r=>server.close(r));assert.ok(path.resolve(root).startsWith(path.resolve(os.tmpdir())+path.sep+'eg-cli-local-'));fs.rmSync(root,{recursive:true,force:true});}})().catch(()=>{console.error('Falha no contrato CLI local sintético.');process.exitCode=1;});
