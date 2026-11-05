@@ -49,6 +49,16 @@ Isso pede novo resumo/confirmação e nova escolha do responsável/vínculo; nã
 
 ## Certificados
 
+Para acessar o dashboard por HTTP usando o IPv4 privado do servidor, na rede privada ou via VPN:
+
+```bash
+sudo bash scripts/assistente-graal.sh --sem-lets-encrypt
+```
+
+A opção seleciona o modo `local` e pula o Certbot e a configuração do proxy do host. Escolha a porta `4444` e o IPv4 privado atribuído ao Ubuntu. O acesso será, por exemplo, `http://10.0.0.2:4444`. A primeira configuração sugere `4444` se ainda não houver porta configurada. Para mudar uma porta já salva no modo local, use `--sem-lets-encrypt --reconfigurar`.
+
+Restrinja a porta escolhida à rede privada ou VPN. O modo local usa HTTP e transmite login e sessão sem criptografia. Se o dashboard já foi configurado no modo online, o assistente pede confirmação da transição e o virtualhost anterior continua instalado.
+
 Emissão automática usa `certbot certonly --webroot`, preservando os virtualhosts do GLPI. O virtualhost temporário serve o desafio, sem encaminhar login em HTTP. Depois de emitir, o assistente instala o virtualhost TLS. Ao adotar certificado Certbot existente, a automação exige lineage exclusivo com nome igual ao domínio e autenticador webroot verificável; preserva o webroot registrado para esse domínio. Certificados compartilhados ou renovação por outro autenticador são recusados antes de modificar o .env/proxy, exigindo revisão da topologia. Não reconfigura nem força renovação de certificado existente por suposição. Um hook próprio valida o proxy e executa reload após renovação, sem substituir hooks externos, mesmo se não foi necessário solicitar e-mail para um certificado já existente. Timer inativo é erro visível; a configuração não é declarada concluída nesse caso. Certificados personalizados e sua renovação permanecem responsabilidade do mecanismo que os fornece.
 
 Referências oficiais consultadas para o gerador: [Nginx proxy_set_header](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_set_header), [Apache RequestHeader](https://httpd.apache.org/docs/2.4/mod/mod_headers.html#requestheader), [Certbot webroot e renovação](https://eff-certbot.readthedocs.io/en/stable/using.html).

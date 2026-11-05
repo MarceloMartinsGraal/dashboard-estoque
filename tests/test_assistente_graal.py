@@ -223,6 +223,26 @@ class AssistantTests(unittest.TestCase):
                 ag.run(root,argparse.Namespace(reconfigurar=False));self.assertEqual(before,(root/".env").read_bytes())
                 self.assertEqual(start.call_count,2);self.assertEqual(integrate.call_count,2)
 
+    def test_no_lets_encrypt_configures_private_http_even_with_saved_online_mode(self):
+        import argparse
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            ag.save_state(root, self.config())
+            with (
+                patch.object(pathlib.Path, "is_file", return_value=True),
+                patch.object(sg, "discover_ips", return_value=["10.0.0.2"]),
+                patch.object(sg, "main") as start,
+                patch.object(ag, "finish_integration", return_value=True),
+                patch.object(ag, "detect_proxy", side_effect=AssertionError("proxy must be skipped")),
+                patch("builtins.input", side_effect=["4444", "", "", "", "", "sim"]),
+            ):
+                ag.run(root, argparse.Namespace(reconfigurar=False, sem_lets_encrypt=True))
+
+            self.assertEqual(ag.load_state(root)["origin"], "http://10.0.0.2:4444")
+            env = sg.parse_env((root / ".env").read_text(encoding="utf-8"))
+            self.assertEqual(env["GLPI_API_BASE_URL"], "http://10.0.0.2:4444/api/integration/v1")
+            start.assert_called_once_with(["dashboard", "--mode", "local", "--glpi-local", "--skip-glpi"])
+
     def test_diagnose_does_not_start_docker_provision_or_rewrite_env(self):
         import argparse
         with tempfile.TemporaryDirectory() as tmp:

@@ -380,13 +380,18 @@ def check_docker():
     sg.need(daemon.startswith("unix://"), "Use somente Docker local via socket Unix; nenhum proxy/env foi alterado.")
 
 
-def gather(root, previous):
+def gather(root, previous, sem_lets_encrypt=False):
     path = root / ".env"
     old = sg.parse_env(path.read_text(encoding="utf-8")) if path.exists() else {}
     c = dict(previous or {})
-    mode = question("Acesso: local (rede privada/VPN) ou online (HTTPS)", c.get("mode", "online" if old.get("GRAAL_SETUP_MODE") == "production" else "local"))
+    if sem_lets_encrypt:
+        mode = "local"
+        print("Acesso HTTP por IP privado (rede privada/VPN).")
+    else:
+        mode = question("Acesso: local (rede privada/VPN) ou online (HTTPS)", c.get("mode", "online" if old.get("GRAAL_SETUP_MODE") == "production" else "local"))
     sg.need(mode in ("local", "online"), "Escolha local ou online.")
-    c.update(mode=mode, port=int(question("Porta interna do dashboard", str(c.get("port", old.get("DASHBOARD_PORT", "8080"))))))
+    default_port = "4444" if sem_lets_encrypt else "8080"
+    c.update(mode=mode, port=int(question("Porta interna do dashboard", str(c.get("port", old.get("DASHBOARD_PORT", default_port))))))
     c["project"] = question("Projeto Compose EXISTENTE (preservar banco/volumes)", old.get("COMPOSE_PROJECT_NAME", c.get("project", "graal-estoque")))
     c["glpi_dir"] = question("Diretório GLPI", old.get("GLPI_DIR", c.get("glpi_dir", "/var/www/glpi")))
     c["web_user"] = question("Usuário PHP do GLPI", old.get("GLPI_WEB_USER", c.get("web_user", "www-data")))
@@ -492,10 +497,11 @@ def check_https(c):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--reconfigurar", action="store_true", help="Rever escolhas e responsável, com backup do .env")
-    parser.add_argument("--diagnosticar", action="store_true", help="Somente leitura autenticada da API, sem reinstalar plugin/provisionar/alterar configuração")
-    parser.add_argument("--reconciliar-instancia", action="store_true", help="Preservar identidade histórica do GLPI e reconciliar credencial/cliente sem mover operações")
+    action = parser.add_mutually_exclusive_group()
+    action.add_argument("--diagnosticar", action="store_true", help="Somente leitura autenticada da API, sem reinstalar plugin/provisionar/alterar configuração")
+    action.add_argument("--reconciliar-instancia", action="store_true", help="Preservar identidade histórica do GLPI e reconciliar credencial/cliente sem mover operações")
+    action.add_argument("--sem-lets-encrypt", action="store_true", help="Acesso HTTP por IPv4 privado (rede privada/VPN), sem Certbot nem proxy do host")
     args = parser.parse_args(argv)
-    sg.need(not(args.diagnosticar and args.reconciliar_instancia),"Escolha diagnóstico ou reconciliação, não ambos.")
     sg.need(sys.platform.startswith("linux") and os.geteuid() == 0, "Execute no Ubuntu com sudo bash scripts/assistente-graal.sh.")
     os.umask(0o077)
     sg.require_tools(["bash", "php"] if args.diagnosticar else ["ip", "docker", "bash", "php"])
@@ -521,8 +527,9 @@ def run(root, args):
     # Dedicated lock also prevents two assistants from mutating a host proxy together.
     with sg.setup_lock(root):
         c = load_state(root)
-        if not c or args.reconfigurar:
-            c = gather(root, c)
+        sem_lets_encrypt = getattr(args, "sem_lets_encrypt", False)
+        if not c or args.reconfigurar or (sem_lets_encrypt and c["mode"] != "local"):
+            c = gather(root, c, sem_lets_encrypt)
             if args.reconfigurar: c.update(admin_id="", links=[])
         sg.need((pathlib.Path(c["glpi_dir"]) / "bin/console").is_file(), "GLPI não encontrado; reveja --reconfigurar.")
         if c["mode"] == "online":
