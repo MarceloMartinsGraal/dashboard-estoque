@@ -71,38 +71,61 @@ export class SessionGuard implements CanActivate {
 export class AuthService {
   private dummy = argon2.hash(randomBytes(32), { type: argon2.argon2id });
   constructor(private readonly db: Database) {}
+  private attemptKey(value: string) {
+    return createHmac('sha256', process.env.SESSION_SECRET!).update(value).digest('hex');
+  }
+  private async limitAttempts(key: string, limit: number) {
+    const attempts = (await this.db.pool.query(
+      `INSERT INTO login_attempts(key,count,expires) VALUES($1,1,now()+interval '15 minutes') ON CONFLICT(key) DO UPDATE SET count=CASE WHEN login_attempts.expires<now() THEN 1 ELSE login_attempts.count+1 END,expires=CASE WHEN login_attempts.expires<now() THEN now()+interval '15 minutes' ELSE login_attempts.expires END RETURNING count`,
+      [key],
+    )).rows[0].count;
+    if (attempts > limit)
+      throw new HttpException('Muitas tentativas; aguarde 15 minutos', 429);
+  }
   async changePassword(id:string,version:string|undefined,body:unknown){
-    const data=validate(z.object({password:z.string().min(12).max(128).refine(v=>v!=='admin','Escolha uma senha diferente da inicial'),confirmPassword:z.string().max(128)}).strict().refine(v=>v.password===v.confirmPassword,'Confirmação da senha divergente'),body);
-    const hash=await argon2.hash(data.password,{type:argon2.argon2id});
+    const data = validate(z.object({
+      password: z.string().min(12).max(128),
+      confirmPassword: z.string().max(128),
+      currentPassword: z.string().min(1).max(128).optional(),
+    }).strict().refine(v => v.password === v.confirmPassword, 'Confirmação da senha divergente'), body);
+    const row = (await this.db.pool.query(
+      'SELECT active,must_change_password,password_hash,session_version::text FROM employees WHERE id=$1',
+      [id],
+    )).rows[0];
+    if (!row?.active || row.session_version !== version)
+      throw new UnauthorizedException('Sessão inválida. Entre novamente.');
+    if (!row.must_change_password && !data.currentPassword)
+      throw new ConflictException('Informe a senha atual para alterar sua senha.');
+    const attemptKey = this.attemptKey(`password-change:${id}`);
+    if (data.currentPassword) {
+      await this.limitAttempts(attemptKey, 5);
+      if (!(await argon2.verify(row.password_hash, data.currentPassword)))
+        throw new UnauthorizedException('Senha atual incorreta');
+    }
+    const samePassword = data.currentPassword
+      ? data.currentPassword === data.password
+      : await argon2.verify(row.password_hash, data.password);
+    if (samePassword)
+      throw new HttpException('Escolha uma senha diferente da atual', 400);
+    const hash = await argon2.hash(data.password, { type: argon2.argon2id });
     return this.db.transaction(async c=>{
       await c.query('SELECT pg_advisory_xact_lock(742106)');
-      const row=(await c.query('SELECT active,must_change_password,session_version::text FROM employees WHERE id=$1 FOR UPDATE',[id])).rows[0];
-      if(!row?.active||row.session_version!==version)throw new UnauthorizedException('Sessão inválida. Entre novamente.');
-      if(!row.must_change_password)throw new ConflictException('Não há troca inicial de senha pendente.');
+      const current = (await c.query(
+        'SELECT active,session_version::text FROM employees WHERE id=$1 FOR UPDATE', [id],
+      )).rows[0];
+      if (!current?.active || current.session_version !== version)
+        throw new UnauthorizedException('Sessão inválida. Entre novamente.');
       await c.query('UPDATE employees SET password_hash=$2,must_change_password=false,session_version=session_version+1 WHERE id=$1',[id,hash]);
       await c.query("DELETE FROM sessions WHERE sess->>'employeeId'=$1",[id]);
-      await audit(c,id,'trocar_senha_inicial','funcionario',id,{firstAccessCompleted:true,sessionsRevoked:true});
+      await c.query('DELETE FROM login_attempts WHERE key=$1', [attemptKey]);
+      await audit(c,id,row.must_change_password ? 'trocar_senha_inicial' : 'trocar_propria_senha','funcionario',id,{firstAccessCompleted:row.must_change_password,sessionsRevoked:true});
       return {ok:true,loginRequired:true};
     });
   }
   async login(username: string, password: string, ip: string) {
-    const key = (value: string) =>
-      createHmac('sha256', process.env.SESSION_SECRET!)
-        .update(value)
-        .digest('hex');
-    for (const [value, limit] of [
-      [`ip:${ip}`, 30],
-      [`user:${username.toLowerCase()}`, 5],
-    ] as const) {
-      const attempts = (
-        await this.db.pool.query(
-          `INSERT INTO login_attempts(key,count,expires) VALUES($1,1,now()+interval '15 minutes') ON CONFLICT(key) DO UPDATE SET count=CASE WHEN login_attempts.expires<now() THEN 1 ELSE login_attempts.count+1 END,expires=CASE WHEN login_attempts.expires<now() THEN now()+interval '15 minutes' ELSE login_attempts.expires END RETURNING count`,
-          [key(value)],
-        )
-      ).rows[0].count;
-      if (attempts > limit)
-        throw new HttpException('Muitas tentativas; aguarde 15 minutos', 429);
-    }
+    const userKey = this.attemptKey(`user:${username.toLowerCase()}`);
+    await this.limitAttempts(this.attemptKey(`ip:${ip}`), 30);
+    await this.limitAttempts(userKey, 5);
     const employee = (
       await this.db.pool.query('SELECT * FROM employees WHERE username=$1', [
         username.toLowerCase(),
@@ -114,7 +137,7 @@ export class AuthService {
     if (!employee || !valid || !employee.active)
       throw new UnauthorizedException('Credenciais inválidas');
     await this.db.pool.query('DELETE FROM login_attempts WHERE key=$1', [
-      key(`user:${username.toLowerCase()}`),
+      userKey,
     ]);
     return {
       id: employee.id,
@@ -209,6 +232,7 @@ export class EmployeesController {
           username: z.string().regex(/^[a-z0-9._-]{3,100}$/),
           name: text,
           password: z.string().min(12).max(128).optional(),
+          mustChangePassword: z.boolean().optional(),
           active: z.boolean(),
           managesAccounts: z.boolean(),
         })
@@ -243,12 +267,12 @@ export class EmployeesController {
       }
       const r = d.id
         ? await c.query(
-            'UPDATE employees SET username=$2,name=$3,active=$4,manages_accounts=$5,password_hash=COALESCE($6,password_hash),session_version=session_version+1 WHERE id=$1 RETURNING id',
-            [d.id, d.username, d.name, d.active, d.managesAccounts, hash],
+            'UPDATE employees SET username=$2,name=$3,active=$4,manages_accounts=$5,password_hash=COALESCE($6,password_hash),must_change_password=COALESCE($7,must_change_password),session_version=session_version+1 WHERE id=$1 RETURNING id,must_change_password',
+            [d.id, d.username, d.name, d.active, d.managesAccounts, hash, d.mustChangePassword ?? null],
           )
         : await c.query(
-            'INSERT INTO employees(username,name,password_hash,active,manages_accounts) VALUES($1,$2,$3,$4,$5) RETURNING id',
-            [d.username, d.name, hash, d.active, d.managesAccounts],
+            'INSERT INTO employees(username,name,password_hash,active,manages_accounts,must_change_password) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,must_change_password',
+            [d.username, d.name, hash, d.active, d.managesAccounts, d.mustChangePassword ?? false],
           );
       if (!r.rowCount)
         throw new HttpException('Funcionário não encontrado', 404);
@@ -268,9 +292,10 @@ export class EmployeesController {
           active: d.active,
           managesAccounts: d.managesAccounts,
           passwordChanged: !!hash,
+          mustChangePassword: r.rows[0].must_change_password,
         },
       );
-      return r.rows[0];
+      return { id: r.rows[0].id };
     });
   }
 }

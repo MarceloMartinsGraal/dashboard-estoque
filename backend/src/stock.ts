@@ -52,12 +52,13 @@ export const openingSchema = z
 @Injectable()
 export class StockService {
   constructor(private readonly db: Database) {}
-  private async lock(client: PoolClient, actor: string, id: string) {
+  private async lock(client: PoolClient, actor: string, id: string, removalVersion?: string | null) {
+    const removing = removalVersion !== undefined;
     if (
       !(
         await client.query(
-          'SELECT id FROM employees WHERE id=$1 AND active AND NOT must_change_password FOR SHARE',
-          [actor],
+          'SELECT id FROM employees WHERE id=$1 AND active AND NOT must_change_password AND (NOT $2::boolean OR session_version::text=$3) FOR SHARE',
+          [actor, removing, removalVersion ?? null],
         )
       ).rowCount
     )
@@ -69,8 +70,50 @@ export class StockService {
       )
     ).rows[0];
     if (!product) throw new NotFoundException('Produto não encontrado');
-    if (!product.active) throw new ConflictException('Produto inativo');
+    if (!removing && product.deleted_at)
+      throw new ConflictException('Produto excluído');
+    if (!removing && !product.active)
+      throw new ConflictException('Produto inativo');
     return product;
+  }
+  async removeProduct(actor: string, id: string, justification: string, version: string | undefined) {
+    const note = validate(text, justification);
+    return this.db.transaction(async (client) => {
+      const product = await this.lock(client, actor, id, version ?? null);
+      if (product.deleted_at) return { id };
+
+      const { date } = (await client.query(
+        `SELECT GREATEST((clock_timestamp() AT TIME ZONE 'America/Sao_Paulo')::date, MAX(event_date))::text AS date
+           FROM movements WHERE product_id=$1`,
+        [id],
+      )).rows[0];
+      const balances = await client.query(
+        `SELECT l.location_id, SUM(l.delta)::text AS quantity
+           FROM ledger l JOIN movements m ON m.id=l.movement_id
+          WHERE m.product_id=$1 GROUP BY l.location_id
+         HAVING SUM(l.delta)>0 ORDER BY l.location_id`,
+        [id],
+      );
+      const movementIds: string[] = [];
+      for (const balance of balances.rows) {
+        const movement = await client.query(
+          `INSERT INTO movements(product_id,kind,quantity,event_date,actor_id,reason,justification)
+           VALUES($1,'ajuste_saida',$2,$3,$4,'correcao_estoque',$5)
+           RETURNING id`,
+          [id, balance.quantity, date, actor, note],
+        );
+        const movementId = movement.rows[0].id;
+        await client.query(
+          'INSERT INTO ledger(movement_id,location_id,delta) VALUES($1,$2,-($3::bigint))',
+          [movementId, balance.location_id, balance.quantity],
+        );
+        movementIds.push(movementId);
+      }
+      await this.checkBalances(client, id);
+      await client.query('UPDATE products SET active=false,deleted_at=now() WHERE id=$1', [id]);
+      await audit(client, actor, 'excluir', 'produto', id, { justification: note, movementIds });
+      return { id };
+    });
   }
   private async location(client: PoolClient, id: string) {
     if (

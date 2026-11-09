@@ -22,7 +22,7 @@ export class InvoiceService {
     private async product(c: PoolClient, id: string | null, confirm: boolean) {
         if (!id)
             return;
-        const p = (await c.query('SELECT id,active FROM products WHERE id=$1 FOR SHARE', [id])).rows[0];
+        const p = (await c.query('SELECT id,active FROM products WHERE id=$1 AND deleted_at IS NULL FOR SHARE', [id])).rows[0];
         if (!p)
             throw new NotFoundException('Produto não encontrado.');
         if (!p.active && !confirm)
@@ -33,7 +33,7 @@ export class InvoiceService {
         const r = await this.products.search({ ...q, status: 'todos', availability: 'all' }, true);
         return { ...r, items: r.items.map(p => ({ id: p.id, description: p.description, active: p.active, legacyId: p.legacy_id?.toString() ?? null })) };
     }
-    async productOption(id: string) { validate(uuid, id); const p = (await this.db.pool.query('SELECT id,description,active,legacy_id::text AS "legacyId" FROM products WHERE id=$1', [id])).rows[0]; if (!p)
+    async productOption(id: string) { validate(uuid, id); const p = (await this.db.pool.query('SELECT id,description,active,legacy_id::text AS "legacyId" FROM products WHERE id=$1 AND deleted_at IS NULL', [id])).rows[0]; if (!p)
         throw new NotFoundException('Produto não encontrado.'); return p; }
     async list(query: unknown) {
         const q = validate(z.object({ ...pageFields, q: z.string().trim().max(200).default(''), link: z.enum(['all', 'loose', 'linked']).default('all'), productId: uuid.optional() }).strict(), query);

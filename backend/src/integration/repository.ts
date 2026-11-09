@@ -18,7 +18,7 @@ export class IntegrationReadRepository {
       WHERE m.product_id=ANY($1::uuid[]) GROUP BY m.product_id,a.id HAVING SUM(l.delta)>0 ORDER BY a.code,a.id`, [ids])).rows;
     }
     async product(c: PoolClient, id: string) {
-        const p = (await c.query('SELECT id,unit,active,opening_date::text FROM products WHERE id=$1', [id])).rows[0];
+        const p = (await c.query('SELECT id,unit,active,opening_date::text FROM products WHERE id=$1 AND deleted_at IS NULL', [id])).rows[0];
         if (!p)
             throw new NotFoundException('Produto não encontrado');
         return p;

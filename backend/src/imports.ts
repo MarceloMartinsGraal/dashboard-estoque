@@ -439,7 +439,7 @@ export class ImportService {
       await c.query(
         `WITH cutoff AS (SELECT COALESCE(MAX(event_date),(now() AT TIME ZONE 'America/Sao_Paulo')::date) d FROM legacy_movements),
  totals AS (SELECT p.id,COALESCE(SUM(CASE lm.kind WHEN 'saida' THEN -lm.quantity ELSE lm.quantity END),0) q FROM products p LEFT JOIN legacy_movements lm ON lm.product_id=p.id WHERE p.source=$2 AND p.opening_date IS NULL GROUP BY p.id),
- opened AS (UPDATE products p SET opening_date=(SELECT d FROM cutoff) FROM totals t WHERE p.id=t.id AND p.opening_date IS NULL RETURNING p.id,t.q),
+ opened AS (UPDATE products p SET opening_date=(SELECT d FROM cutoff) FROM totals t WHERE p.id=t.id AND p.opening_date IS NULL AND p.deleted_at IS NULL RETURNING p.id,t.q),
  moved AS (INSERT INTO movements(product_id,kind,quantity,event_date,actor_id,reason,justification) SELECT id,'abertura',q,(SELECT d FROM cutoff),$1,'saldo_legado','Saldo líquido do histórico importado (entradas − saídas)' FROM opened WHERE q>0 RETURNING id,quantity),
  placed AS (INSERT INTO ledger(movement_id,location_id,delta) SELECT id,'00000000-0000-0000-0000-000000000001',quantity FROM moved)
  SELECT COUNT(*)::int products,COUNT(*) FILTER(WHERE q>0)::int "withBalance",COUNT(*) FILTER(WHERE q<0)::int "negativeOpenedAtZero" FROM opened`,

@@ -48,6 +48,56 @@ test('primeiro login restringe rotas; troca forte atômica revoga sessões e exi
  assert.equal((await post(a,ready.body.csrf,'/api/employees',{id:saved.id,username:'admin',name:saved.name,active:true,managesAccounts:true,must_change_password:false})).status,400);
  const logout=await post(a,ready.body.csrf,'/api/auth/logout',{});assert.equal(logout.status,201);
 });
+test('responsável exige troca no próximo login e funcionário também troca a própria senha', async () => {
+ const db = await database();
+ const adminPassword = 'admin-sintetico-longo';
+ await db.pool.query(
+  "INSERT INTO employees(username,name,password_hash,manages_accounts) VALUES('admin','Responsável',$1,true)",
+  [await argon.hash(adminPassword)],
+ );
+ const app = await application();
+ await app.listen(0, '127.0.0.1');
+ const admin = request.agent(app.getHttpServer()), employee = request.agent(app.getHttpServer());
+ const responsible = await login(admin, adminPassword);
+ const temporary = 'temporaria-sintetica';
+ const account = await post(admin, responsible.body.csrf, '/api/employees', {
+  username: 'funcionario', name: 'Funcionário', active: true, managesAccounts: false,
+  password: temporary, mustChangePassword: true,
+ });
+ assert.equal(account.status, 201);
+ const signIn = async password => post(employee, (await employee.get('/api/auth/csrf')).body.csrf,
+  '/api/auth/login', { username: 'funcionario', password });
+ const first = await signIn(temporary);
+ assert.equal(first.body.employee.must_change_password, true);
+ assert.equal((await employee.get('/api/products')).status, 403);
+ const next = 'primeira-senha-sintetica';
+ assert.equal((await post(employee, first.body.csrf, '/api/auth/change-password',
+  { password: next, confirmPassword: next })).status, 201);
+ const ready = await signIn(next);
+ assert.equal(ready.body.employee.must_change_password, false);
+ const final = 'segunda-senha-sintetica';
+ const payload = { password: final, confirmPassword: final };
+ assert.equal((await post(employee, ready.body.csrf, '/api/auth/change-password',
+  { ...payload, currentPassword: 'incorreta' })).status, 401);
+ assert.equal((await post(employee, ready.body.csrf, '/api/auth/change-password',
+  { ...payload, currentPassword: next })).status, 201);
+ assert.equal((await employee.get('/api/auth/me')).status, 401);
+ const lastLogin = await signIn(final);
+ assert.equal(lastLogin.status, 201);
+ for (let attempt = 0; attempt < 5; attempt++)
+  assert.equal((await post(employee, lastLogin.body.csrf, '/api/auth/change-password',
+   { password: next, confirmPassword: next, currentPassword: 'incorreta' })).status, 401);
+ assert.equal((await post(employee, lastLogin.body.csrf, '/api/auth/change-password',
+  { password: next, confirmPassword: next, currentPassword: final })).status, 429);
+ const reset = 'outra-temporaria-sintetica';
+ assert.equal((await post(admin, responsible.body.csrf, '/api/employees', {
+  id: account.body.id, username: 'funcionario', name: 'Funcionário', active: true,
+  managesAccounts: false, password: reset, mustChangePassword: true,
+ })).status, 201);
+ assert.equal((await employee.get('/api/auth/me')).status, 401);
+ assert.equal((await signIn(final)).status, 401);
+ assert.equal((await signIn(reset)).body.employee.must_change_password, true);
+});
 test('provisionamento real recusa responsável pendente e não cria credencial',async()=>{
  const db=await database();await application();const row=(await db.pool.query('SELECT id FROM employees')).rows[0];assert.ok(row);
  const {provision,listAdmins}=require('../scripts/provision-integration.cjs');const c=await db.pool.connect();try{const list=await listAdmins(c);assert.equal(list.requiresFirstAccess,true);assert.deepEqual(list.items,[]);await assert.rejects(()=>provision(c,{operation:'provision',instanceId:'first-access-synthetic',adminId:row.id,validDays:1,links:[]}),/primeiro|pendente|responsável/i);}finally{c.release();}

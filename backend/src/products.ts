@@ -54,7 +54,7 @@ export class ProductService {
       : `($1='' OR p.description ILIKE '%'||$1||'%' OR p.legacy_id::text=$1)`;
     const positive=integrationSearch&&'availability' in q&&q.availability==='positive';
     const availability=positive?` AND p.active AND COALESCE((SELECT SUM(l.delta) FROM movements m JOIN ledger l ON l.movement_id=m.id WHERE m.product_id=p.id),0)>0`:'';
-    const where = `${search}${availability} AND ($2::uuid IS NULL OR p.category_id=$2) AND ($3::uuid IS NULL OR EXISTS(SELECT 1 FROM ledger l JOIN movements m ON m.id=l.movement_id WHERE m.product_id=p.id AND l.location_id=$3)) AND ($4='todos' OR ($4='ativo' AND p.active) OR ($4='inativo' AND NOT p.active) OR ($4='abertura_pendente' AND p.opening_date IS NULL))`;
+    const where = `p.deleted_at IS NULL AND ${search}${availability} AND ($2::uuid IS NULL OR p.category_id=$2) AND ($3::uuid IS NULL OR EXISTS(SELECT 1 FROM ledger l JOIN movements m ON m.id=l.movement_id WHERE m.product_id=p.id AND l.location_id=$3)) AND ($4='todos' OR ($4='ativo' AND p.active) OR ($4='inativo' AND NOT p.active) OR ($4='abertura_pendente' AND p.opening_date IS NULL))`;
     const items = await client.query(
       `SELECT p.*,p.opening_date::text AS opening_date,c.name AS category,(SELECT COALESCE(SUM(l.delta),0)::text FROM movements m JOIN ledger l ON l.movement_id=m.id WHERE m.product_id=p.id) AS quantity,(SELECT COALESCE(jsonb_agg(s.location_id),'[]'::jsonb) FROM (SELECT l.location_id FROM movements m JOIN ledger l ON l.movement_id=m.id WHERE m.product_id=p.id GROUP BY l.location_id HAVING SUM(l.delta)>0) s) AS location_ids FROM products p LEFT JOIN categories c ON c.id=p.category_id WHERE ${where} ORDER BY p.description,p.id LIMIT $5 OFFSET $6`,
       [...args, q.limit, (q.page - 1) * q.limit],
@@ -85,7 +85,7 @@ export class ProductService {
   private async candidateRows(description: string, client: Pick<PoolClient,'query'> = this.db.pool) {
     const rows=(await client.query(`SELECT p.id,p.description,p.unit,p.active,p.opening_date::text AS opening_date,p.legacy_id AS "legacyId",c.name AS category,s.name AS subcategory,
       (SELECT COALESCE(SUM(l.delta),0)::text FROM movements m JOIN ledger l ON l.movement_id=m.id WHERE m.product_id=p.id) AS quantity
-      FROM products p LEFT JOIN categories c ON c.id=p.category_id LEFT JOIN subcategories s ON s.id=p.subcategory_id ORDER BY p.id`)).rows;
+      FROM products p LEFT JOIN categories c ON c.id=p.category_id LEFT JOIN subcategories s ON s.id=p.subcategory_id WHERE p.deleted_at IS NULL ORDER BY p.id`)).rows;
     return rows.map(p=>({...p,quantity:formatQuantity(BigInt(p.quantity)),...compareProducts(description,p.description)})).filter(p=>p.similar)
       .sort((a,b)=>Number(b.exact)-Number(a.exact)||b.score-a.score||a.id.localeCompare(b.id));
   }
@@ -115,6 +115,7 @@ export class ProductService {
           await c.query('SELECT * FROM products WHERE id=$1 FOR UPDATE', [d.id])
         ).rows[0];
         if (!before) throw new NotFoundException();
+        if (before.deleted_at) throw new ConflictException('Produto excluído');
       }
       const params = [
         d.description,

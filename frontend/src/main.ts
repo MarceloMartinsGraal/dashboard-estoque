@@ -155,6 +155,7 @@ function formDialog(
   submit: (values: Row) => Promise<unknown>,
   note?: string,
   onSaved?: () => Promise<unknown>,
+  submitLabel = 'Salvar',
 ) {
   const d = dialog(name),
     form = el('form'),
@@ -167,7 +168,7 @@ function formDialog(
     grid.append(item.label);
   }
   const actions = el('div', '', 'dialog-actions'),
-    save = el('button', 'Salvar', 'primary');
+    save = el('button', submitLabel, 'primary');
   save.type = 'submit';
   actions.append(
     button('Cancelar', () => d.close()),
@@ -286,19 +287,29 @@ async function loginScreen() {
     }
   });
 }
-async function firstAccessScreen(){
-  ++navigationVersion;current='Primeiro acesso';root.replaceChildren();
-  const wrap=el('section','','login');wrap.append(brandMark(),el('h1','Primeiro acesso'),el('p','Troque a senha inicial antes de utilizar o dashboard. Depois, entre novamente com a nova senha.','muted'));
+async function firstAccessScreen(required = true){
+  const heading = required ? 'Primeiro acesso' : 'Alterar minha senha';
+  ++navigationVersion;current=heading;root.replaceChildren();
+  const wrap=el('section','','login');
+  wrap.append(brandMark(),el('h1',heading),el('p',required
+    ? 'Troque a senha antes de utilizar o dashboard. Depois, entre novamente com a nova senha.'
+    : 'Confirme a senha atual. Depois da troca, entre novamente com a nova senha.','muted'));
   const form=el('form'),password=control({key:'newPassword',label:'Nova senha',type:'password'}),confirmation=control({key:'confirmPassword',label:'Confirme a nova senha',type:'password'});
+  const existing = control({key:'currentPassword',label:'Senha atual',type:'password'});
+  (existing.input as HTMLInputElement).autocomplete = 'current-password';
+  (existing.input as HTMLInputElement).maxLength = 128;
+  if (!required) form.append(existing.label);
   for(const field of [password,confirmation]){const input=field.input as HTMLInputElement;input.minLength=12;input.maxLength=128;input.autocomplete='new-password';}
   const error=el('p','','error'),recovery=el('div');error.role='alert';const save=el('button','Alterar senha','primary');save.type='submit';let busy=false;
-  const logout=button('Sair',async()=>{await api('auth/logout',{});user=null;await loginScreen();});
+  const logout=required
+    ? button('Sair',async()=>{await api('auth/logout',{});user=null;await loginScreen();})
+    : button('Cancelar', () => shell());
   form.append(password.label,confirmation.label,el('p','Use pelo menos 12 caracteres.','subtle'),error,recovery,save);wrap.append(form,logout);root.append(wrap);
   form.addEventListener('submit',async event=>{
     event.preventDefault();if(busy||!form.reportValidity())return;
     if(password.input.value!==confirmation.input.value){error.textContent='A confirmação da senha está diferente.';return;}
     busy=true;save.disabled=true;logout.disabled=true;error.textContent='';recovery.replaceChildren();
-    try{await api('auth/change-password',{password:password.input.value,confirmPassword:confirmation.input.value});user=null;await loginScreen();message('Senha alterada. Entre novamente com a nova senha.');}
+    try{await api('auth/change-password',{password:password.input.value,confirmPassword:confirmation.input.value,...(!required ? {currentPassword:existing.input.value} : {})});user=null;await loginScreen();message('Senha alterada. Entre novamente com a nova senha.');}
     catch(e){error.textContent=(e as Error).message+' Se houve falha de comunicação, tente entrar com a nova senha antes de repetir.';recovery.replaceChildren(button('Ir para o login',async()=>{user=null;await loginScreen();}));}
     finally{busy=false;save.disabled=false;logout.disabled=false;}
   });
@@ -315,6 +326,7 @@ async function shell() {
   const account = el('div', '', 'user');
   account.append(
     el('span', user!.name),
+    button('Alterar minha senha', () => firstAccessScreen(false)),
     button('Sair', async () => {
       await api('auth/logout', {});
       await loginScreen();
@@ -487,7 +499,7 @@ function editProduct(p: Row = {}) {
       });
     },
     p.source
-      ? 'A descrição original e o ID legado serão preservados.'
+      ? 'A descrição original e o código serão preservados.'
       : undefined,
   );
   if(!p.id)review=productMatchReview(popup,async candidate=>{await balances(candidate);});
@@ -501,7 +513,7 @@ async function products() {
   const toolbar = el('form', '', 'toolbar');
   const search = control({
       key: 'q',
-      label: 'Buscar descrição ou ID legado',
+      label: 'Buscar por descrição ou código',
       value: productQuery,
       required: false,
     }),
@@ -570,12 +582,22 @@ async function products() {
           p.description || 'Descrição pendente de validação',
         );
         if (p.legacy_id)
-          name.append(el('div', 'Legado #' + p.legacy_id, 'subtle'));
+          name.append(el('div', 'Código ' + p.legacy_id, 'subtle'), el('span', 'Importado', 'badge'));
         const actions = el('div', '', 'actions');
         actions.append(
           button('Armários', () => balances(p)),
           button('Editar', () => editProduct(p)),
           button('Histórico', () => productHistory(p)),
+          button('Excluir definitivamente', () => {
+            formDialog(
+              'Excluir definitivamente · ' + (p.description || 'Descrição pendente de validação'),
+              [{ key: 'justification', label: 'Justificativa' }],
+              (d) => api('products/' + p.id + '/remove', { justification: d.justification }),
+              'O produto sairá do catálogo. Se houver saldo, o sistema dará baixa por armário. O histórico será preservado.',
+              undefined,
+              'Excluir definitivamente',
+            );
+          }),
         );
         if (p.active)
           actions.append(
@@ -1364,7 +1386,7 @@ async function history(
             const name = el('div', r.description || 'Descrição pendente');
             if (r.product_code)
               name.append(
-                el('div', 'Código legado ' + r.product_code, 'subtle'),
+                el('div', 'Código ' + r.product_code, 'subtle'),
               );
             name.append(el('span', label(r.regime), 'badge'));
             if (r.zero_evidence)
@@ -1423,7 +1445,7 @@ function movementDetails(r: Row) {
       : 'Horário não disponível no legado',
     'Observação / justificativa': r.observation ?? 'Não informada',
     Origem: r.origin ?? label(r.regime),
-    'ID legado': r.legacy_id ?? 'Não se aplica',
+    'Código da movimentação': r.legacy_id ?? 'Não se aplica',
     'Data estimada':
       r.regime === 'legado'
         ? r.date_estimated
@@ -1458,6 +1480,7 @@ function movementDetails(r: Row) {
     );
   if (
     r.regime === 'operacional' &&
+    !r.product_deleted &&
     !r.reversed_by &&
     !['abertura', 'estorno'].includes(r.kind)
   )
@@ -1557,7 +1580,7 @@ async function imports() {
           'summary',
           new Date(batch.created_at).toLocaleString('pt-BR') +
             ' · ' +
-            (batch.confirmed_at ? 'Legado importado' : 'Prévia'),
+            (batch.confirmed_at ? 'Importado' : 'Prévia'),
         );
       detail.append(summary);
       renderBatch(detail, batch);
@@ -1606,7 +1629,7 @@ function renderBatch(container: HTMLElement, batch: Row) {
         `${movements.imported} movimentos efetivamente importados; ${movements.existing} já existentes${batch.confirmed_at ? '' : `; ${movements.planned} previstos`}. ${movements.conflicting + products.conflicting} conflitos bloqueiam a confirmação integral.`,
       ),
       table(
-        ['Entidade', 'ID legado', 'Motivo da segregação / rejeição'],
+        ['Entidade', 'Código', 'Motivo da segregação / rejeição'],
         report.issues,
         (r) => [r.entity, String(r.legacyId), r.reason],
       ),
@@ -1656,7 +1679,7 @@ function renderBatch(container: HTMLElement, batch: Row) {
   balances.append(
     el('summary', 'Saldos legados por produto'),
     table(
-      ['ID legado', 'Descrição', 'Saldo histórico', 'Unidade'],
+      ['Código', 'Descrição', 'Saldo histórico', 'Unidade'],
       p.balances,
       (r) => [String(r.legacyId), r.description, quantity(r.quantity), r.unit],
     ),
@@ -1804,6 +1827,15 @@ async function employees() {
           value: String(row.active ?? true),
         },
         {
+          key: 'mustChangePassword',
+          label: 'Alterar senha após login?',
+          options: [
+            { value: 'false', label: 'Não' },
+            { value: 'true', label: 'Sim' },
+          ],
+          value: String(row.must_change_password ?? false),
+        },
+        {
           key: 'managesAccounts',
           label: 'Administra contas?',
           options: [
@@ -1818,6 +1850,7 @@ async function employees() {
           ...d,
           active: d.active === 'true',
           managesAccounts: d.managesAccounts === 'true',
+          mustChangePassword: d.mustChangePassword === 'true',
           ...(row.id ? { id: row.id } : {}),
         };
         if (!payload.password) delete payload.password;

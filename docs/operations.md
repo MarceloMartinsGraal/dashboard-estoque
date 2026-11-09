@@ -77,6 +77,10 @@ Confira também soma do livro por produto/localização, histórico de estornos,
 
 ## Atualização e falhas
 
+A migração `008_deleted_products.sql` adiciona a marca de exclusão ao catálogo. A ação **Excluir definitivamente** pede justificativa, registra um ajuste de saída para o saldo de cada armário e retira o produto do catálogo na mesma transação. O histórico de movimentações e os vínculos de documentos permanecem disponíveis.
+
+Cada funcionário pode usar **Alterar minha senha** com a senha atual. Em **Funcionários**, responsáveis podem definir uma senha individual e selecionar **Alterar senha após login**. Salvar a conta revoga as sessões existentes. Quando a troca é obrigatória, o próximo login libera o dashboard após a troca e uma nova autenticação.
+
 1. Fazer e validar backup; registrar a imagem/commit anterior. Commit e publicação são feitos pelo usuário/responsável, nunca automaticamente pelo agente.
 2. Executar testes, builds e configuração Nginx/Compose em homologação com o mesmo PostgreSQL 18.4.
 3. Conferir se novas migrações são compatíveis com reversão da aplicação; não supor que rollback de imagem desfaz schema ou dados.

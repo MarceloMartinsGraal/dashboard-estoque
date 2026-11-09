@@ -19,6 +19,14 @@ export class StockController {
   @Get('products/:id/balances') balances(@Param('id') id: string) {
     return this.stock.balances(id);
   }
+  @Post('products/:id/remove') removeProduct(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    const { justification } = validate(z.object({ justification: text }).strict(), body);
+    return this.stock.removeProduct(req.employee!.id, id, justification, req.session.employeeVersion);
+  }
   @Post('products/:id/opening') opening(
     @Req() req: Request,
     @Param('id') id: string,

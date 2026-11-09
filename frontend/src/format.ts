@@ -44,7 +44,7 @@ export function label(value: string): string {
         saldo_legado: 'Saldo do histórico importado',
         legado_nao_informado: 'Legado não informado',
         operacional: 'Operacional',
-        legado: 'Legado importado',
+        legado: 'Importado',
         todos: 'Todas as origens',
       } as Record<string, string>
     )[value] ?? value

@@ -54,6 +54,33 @@ function cmd(id, extra = {}) {
     ...extra,
   };
 }
+test('exclusão baixa o saldo por armário uma vez e mantém o histórico', async () => {
+  const { ProductService } = require('../dist/backend/products');
+  const p = await product();
+  await stock.opening(actor, p, day, [
+    { locationId: locA, quantity: '2' },
+    { locationId: locB, quantity: '3' },
+  ], 'Contagem sintética');
+  await assert.rejects(stock.removeProduct(actor, p, 'Sessão revogada', '1'), /Unauthorized/i);
+  await Promise.all([
+    stock.removeProduct(actor, p, 'Produto fora de uso', '0'),
+    stock.removeProduct(actor, p, 'Produto fora de uso', '0'),
+  ]);
+  assert.equal((await stock.balances(p)).total, '0.000');
+  const rows = (await db.pool.query(
+    'SELECT kind, quantity::text FROM movements WHERE product_id=$1 ORDER BY kind, quantity',
+    [p],
+  )).rows;
+  assert.deepEqual(rows, [
+    { kind: 'abertura', quantity: '5000' },
+    { kind: 'ajuste_saida', quantity: '2000' },
+    { kind: 'ajuste_saida', quantity: '3000' },
+  ]);
+  const catalog = new ProductService(db);
+  assert.ok(!(await catalog.search({ q: 'Sintético', limit: 100 })).items.some(row => row.id === p));
+  await assert.rejects(stock.move(actor, cmd(p, { kind: 'entrada' })), /excluído/i);
+  await assert.rejects(catalog.save(actor, { id: p, description: 'Sintético', active: true }), /excluído/i);
+});
 test('sem contagem aprovada a operação permanece bloqueada', async () => {
   const p = await product();
   await assert.rejects(stock.move(actor, cmd(p)), /abertura/i);

@@ -223,7 +223,7 @@ export class CatalogController {
     );
     const counts = (
       await this.db.pool.query(
-        'SELECT COUNT(*)::int products,COUNT(*) FILTER(WHERE opening_date IS NULL)::int pending FROM products',
+        'SELECT COUNT(*)::int products,COUNT(*) FILTER(WHERE opening_date IS NULL)::int pending FROM products WHERE deleted_at IS NULL',
       )
     ).rows[0];
     return {

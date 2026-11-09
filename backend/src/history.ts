@@ -45,7 +45,7 @@ const schema = z
   .strict();
 const historySql = `
  SELECT m.id,m.product_id,m.kind,m.quantity::text,m.event_date,m.recorded_at,m.reason,m.ticket,
- m.justification AS observation,m.actor_id,e.name AS author,p.description,p.original_description,p.legacy_id::text AS product_code,p.unit,p.category_id,p.subcategory_id,
+ m.justification AS observation,m.actor_id,e.name AS author,p.description,p.original_description,p.legacy_id::text AS product_code,p.unit,p.category_id,p.subcategory_id,p.deleted_at IS NOT NULL AS product_deleted,
  'operacional'::text AS regime,NULL::text AS origin,NULL::text AS legacy_id,false AS date_estimated,NULL::text AS date_original,NULL::text AS conversion_rule,'confirmado'::text AS validation_status,false AS zero_evidence,
  m.reversal_of,undo.id AS reversed_by,original.kind AS original_kind,
  CASE WHEN m.kind='abertura' THEN 'abertura' WHEN m.kind='realocacao' OR (m.kind='estorno' AND original.kind='realocacao') THEN 'realocacao'
@@ -53,7 +53,7 @@ const historySql = `
  COALESCE((SELECT jsonb_agg(jsonb_build_object('id',a.id,'code',a.code,'name',a.name,'active',a.active,'delta',l.delta::text) ORDER BY a.code,a.id) FROM ledger l JOIN locations a ON a.id=l.location_id WHERE l.movement_id=m.id),'[]'::jsonb) AS locations
  FROM movements m JOIN products p ON p.id=m.product_id JOIN employees e ON e.id=m.actor_id LEFT JOIN movements original ON original.id=m.reversal_of LEFT JOIN movements undo ON undo.reversal_of=m.id
  UNION ALL
- SELECT m.id,m.product_id,m.kind,m.quantity::text,m.event_date,NULL::timestamptz,m.reason,m.ticket,m.observation,NULL::uuid,m.author_label,p.description,p.original_description,p.legacy_id::text,p.unit,p.category_id,p.subcategory_id,
+ SELECT m.id,m.product_id,m.kind,m.quantity::text,m.event_date,NULL::timestamptz,m.reason,m.ticket,m.observation,NULL::uuid,m.author_label,p.description,p.original_description,p.legacy_id::text,p.unit,p.category_id,p.subcategory_id,p.deleted_at IS NOT NULL,
  'legado',m.origin,m.legacy_id::text,m.date_estimated,m.date_original,m.conversion_rule,m.validation_status,m.zero_evidence,NULL::uuid,NULL::uuid,NULL::text,m.kind,
  jsonb_build_array(jsonb_build_object('id',a.id,'code',a.code,'name',a.name,'active',a.active,'delta',NULL))
  FROM legacy_movements m JOIN products p ON p.id=m.product_id JOIN locations a ON a.code='NAO_INFORMADA'
@@ -117,8 +117,9 @@ export async function queryHistory(
     )
   ).rows[0];
   return {
-    items: result.items.map((r: any) => ({
+    items: result.items.map(({ product_deleted, ...r }: any) => ({
       ...r,
+      ...(!external ? { product_deleted } : {}),
       quantity: formatQuantity(BigInt(r.quantity)),
       locations: r.locations.map((l: any) => ({
         ...l,

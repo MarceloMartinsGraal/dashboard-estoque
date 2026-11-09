@@ -67,6 +67,6 @@ test('histórico inclui legado por padrão e identifica sua origem explicitament
   assert.equal(readHistoryState('').regime, 'todos');
   assert.equal(
     require('../frontend/src/format.ts').label('legado'),
-    'Legado importado',
+    'Importado',
   );
 });
